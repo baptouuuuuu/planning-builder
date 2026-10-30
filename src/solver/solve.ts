@@ -199,7 +199,7 @@ function diagnose(problem: Problem, task: Task): Unscheduled {
       return {
         ...base,
         code: 'no-slot',
-        reason: `Personne n'est disponible dans la plage ${formatAbs(task.window.start)} – ${formatAbs(task.window.end)}.`,
+        reason: `Personne n'est disponible dans la plage ${formatAbs(task.window.start, problem.settings.startDate)} – ${formatAbs(task.window.end, problem.settings.startDate)}.`,
       };
   }
   return {

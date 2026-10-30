@@ -1,10 +1,10 @@
-import { DAY, DAY_NAMES, formatAbs, formatTime } from '../domain/types';
+import { DAY, dayLabel, formatAbs, formatTime } from '../domain/types';
 import { useStore } from '../state/store';
 
 export function Timeline() {
   const { people, tasks, assignments, settings, toggleLock } = useStore();
   const taskMap = new Map(tasks.map((t) => [t.id, t]));
-  const { dayStart, dayEnd } = settings;
+  const { dayStart, dayEnd, startDate } = settings;
   const span = Math.max(60, dayEnd - dayStart);
   const pct = (m: number) => `${Math.min(100, Math.max(0, ((m - dayStart) / span) * 100))}%`;
   const hours: number[] = [];
@@ -16,18 +16,21 @@ export function Timeline() {
     <div className="space-y-6">
       {Array.from({ length: settings.horizonDays }, (_, d) => {
         const base = d * DAY;
-        const placed = assignments.filter((a) => a.start >= base && a.start < base + DAY);
+        const end = (a: { taskId: string; start: number }) => a.start + (taskMap.get(a.taskId)?.duration ?? 0);
+        // Une tâche qui dépasse minuit apparaît aussi sur le jour suivant, dans la plage affichée.
+        const placed = assignments.filter((a) => a.start < base + dayEnd && end(a) > base + dayStart);
+        const startsToday = placed.filter((a) => a.start >= base && a.start < base + DAY).length;
         return (
-          <section key={d} aria-label={`Jour ${DAY_NAMES[d % 7]}`}>
+          <section key={d} aria-label={`Jour ${dayLabel(d, startDate)}`}>
             <h3 className="mb-1 text-sm font-semibold text-slate-600">
-              {DAY_NAMES[d % 7]} {d >= 7 ? `(+${Math.floor(d / 7)})` : ''} · {placed.length} tâche(s)
+              {dayLabel(d, startDate)} · {startsToday} tâche(s)
             </h3>
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
               <div className="min-w-[640px]">
                 <div className="relative ml-28 h-6 border-b border-slate-200 text-xs text-slate-500">
                   {hours.map((m) => (
                     <span key={m} className="absolute -translate-x-1/2" style={{ left: pct(m) }}>
-                      {formatTime(m).slice(0, 2)}h
+                      {String(Math.floor(m / 60) % 24).padStart(2, '0')}h
                     </span>
                   ))}
                 </div>
@@ -42,7 +45,7 @@ export function Timeline() {
                         <div key={m} className="absolute inset-y-0 border-l border-slate-100" style={{ left: pct(m) }} />
                       ))}
                       {p.availability
-                        .filter((a) => a.end > base && a.start < base + DAY)
+                        .filter((a) => a.end > base + dayStart && a.start < base + dayEnd)
                         .map((a, i) => (
                           <div
                             key={i}
@@ -64,7 +67,7 @@ export function Timeline() {
                               key={a.taskId}
                               onClick={() => toggleLock(a.taskId)}
                               aria-pressed={a.locked}
-                              title={`${t.name} · ${formatAbs(a.start)} → ${formatTime((a.start + t.duration) % DAY)} · ${
+                              title={`${t.name} · ${formatAbs(a.start, startDate)} → ${formatTime(a.start + t.duration - Math.floor(a.start / DAY) * DAY)} · ${
                                 a.locked ? 'verrouillé (cliquer pour déverrouiller)' : 'cliquer pour verrouiller'
                               }`}
                               className={`absolute inset-y-1 overflow-hidden rounded-md px-1 text-left text-xs font-medium text-white shadow ${
@@ -80,7 +83,7 @@ export function Timeline() {
                               {a.locked ? '🔒 ' : ''}
                               {t.name}
                               <br />
-                              <span className="opacity-80">{formatTime(s)}</span>
+                              <span className="opacity-80">{s < 0 ? '(suite)' : formatTime(s)}</span>
                             </button>
                           );
                         })}

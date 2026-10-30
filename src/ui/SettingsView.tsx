@@ -1,6 +1,6 @@
 import { useStore } from '../state/store';
 import { formatTime, parseTime } from '../domain/types';
-import { Card, btnDanger, btnGhost, inputCls } from './fields';
+import { Card, OffsetTimeField, NumberField, btnDanger, btnGhost, inputCls } from './fields';
 
 export function SettingsView() {
   const { settings, setSettings, seed, loadSample, reset, exportJson } = useStore();
@@ -20,18 +20,24 @@ export function SettingsView() {
       <Card className="grid max-w-xl gap-4 sm:grid-cols-2">
         <label className="space-y-1 text-sm font-medium">
           Nombre de jours planifiés
-          <input
-            type="number"
+          <NumberField
+            label="Nombre de jours planifiés"
             min={1}
             max={14}
             className={`${inputCls} block w-full`}
             value={settings.horizonDays}
-            onChange={(e) =>
-              setSettings({ ...settings, horizonDays: Math.min(14, Math.max(1, Number(e.target.value) || 1)) })
-            }
+            onChange={(horizonDays) => setSettings({ ...settings, horizonDays })}
           />
         </label>
-        <div />
+        <label className="space-y-1 text-sm font-medium">
+          Date du premier jour
+          <input
+            type="date"
+            className={`${inputCls} block w-full`}
+            value={settings.startDate ?? ''}
+            onChange={(e) => setSettings({ ...settings, startDate: e.target.value || undefined })}
+          />
+        </label>
         <label className="space-y-1 text-sm font-medium">
           Début de journée affiché
           <input
@@ -43,12 +49,14 @@ export function SettingsView() {
         </label>
         <label className="space-y-1 text-sm font-medium">
           Fin de journée affichée
-          <input
-            type="time"
-            className={`${inputCls} block w-full`}
-            value={formatTime(settings.dayEnd)}
-            onChange={(e) => e.target.value && setSettings({ ...settings, dayEnd: parseTime(e.target.value) })}
-          />
+          <span className="block">
+            <OffsetTimeField
+              label="Fin de journée"
+              baseDay={0}
+              value={settings.dayEnd}
+              onChange={(dayEnd) => setSettings({ ...settings, dayEnd })}
+            />
+          </span>
         </label>
         <p className="text-sm text-slate-500 sm:col-span-2">
           Les contraintes dures (disponibilités, non-chevauchement, durées, dépendances, créneaux verrouillés) sont

@@ -27,7 +27,7 @@ export function validate(problem: Problem, assignments: Assignment[]): Conflict[
     }
     const end = a.start + task.duration;
     if (!fitsAvailability(person, a.start, end))
-      conflicts.push({ taskId: task.id, message: `${person.name} n'est pas disponible à ${formatAbs(a.start)}.` });
+      conflicts.push({ taskId: task.id, message: `${person.name} n'est pas disponible à ${formatAbs(a.start, problem.settings.startDate)}.` });
     if (!fitsWindow(task, a.start, end))
       conflicts.push({ taskId: task.id, message: 'Hors de la plage horaire imposée.' });
     for (const depId of task.dependsOn) {
