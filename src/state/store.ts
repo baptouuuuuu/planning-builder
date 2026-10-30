@@ -66,7 +66,8 @@ function load(): Snapshot {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Snapshot;
-      if (Array.isArray(parsed.people) && Array.isArray(parsed.tasks)) return parsed;
+      if (Array.isArray(parsed.people) && Array.isArray(parsed.tasks))
+        return { ...parsed, tasks: parsed.tasks.map((t) => ({ ...t, linkedTo: t.linkedTo ?? [] })) };
     }
   } catch {
     /* données corrompues: on repart de l'exemple */

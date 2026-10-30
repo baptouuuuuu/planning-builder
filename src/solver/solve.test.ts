@@ -16,6 +16,7 @@ const task = (id: string, duration: number, extra: Partial<Task> = {}): Task => 
   duration,
   preferredPersonIds: [],
   dependsOn: [],
+  linkedTo: [],
   chainSamePerson: false,
   ...extra,
 });
@@ -111,5 +112,20 @@ describe('solver', () => {
   it('handles an empty team', () => {
     const r = solve(mk([], [task('t', 30)]), { seed: 1 });
     expect(r.unscheduled[0]?.code).toBe('no-person');
+  });
+});
+
+describe('liens et équilibrage', () => {
+  it('lie des tâches à la même personne, sans ordre', () => {
+    const ppl = [person('a', [0, 600]), person('b', [0, 600])];
+    const r = solve(mk(ppl, [task('t1', 60, { linkedTo: ['t2'] }), task('t2', 60, { linkedTo: ['t1'] })]), { seed: 1 });
+    const [x, y] = r.assignments;
+    expect(r.assignments).toHaveLength(2);
+    expect(x!.personId).toBe(y!.personId);
+  });
+  it('répartit la charge', () => {
+    const ppl = [person('a', [0, 600]), person('b', [0, 600])];
+    const r = solve(mk(ppl, [task('1', 60), task('2', 60), task('3', 60), task('4', 60)]), { seed: 1 });
+    expect(r.assignments.filter((a) => a.personId === 'a')).toHaveLength(2);
   });
 });

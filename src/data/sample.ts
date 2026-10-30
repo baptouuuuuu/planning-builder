@@ -18,6 +18,7 @@ const t = (id: string, name: string, duration: number, extra: Partial<Task> = {}
   duration,
   preferredPersonIds: [],
   dependsOn: [],
+  linkedTo: [],
   chainSamePerson: false,
   ...extra,
 });

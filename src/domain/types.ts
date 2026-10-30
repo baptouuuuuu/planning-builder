@@ -26,6 +26,8 @@ export interface Task {
   preferredPersonIds: string[];
   /** Tâches qui doivent être terminées avant le début de celle-ci. */
   dependsOn: string[];
+  /** Tâches liées (relation symétrique, sans ordre): faites par la même personne. */
+  linkedTo: string[];
   /** Si vrai, même personne que les tâches dont elle dépend (enchaînement). */
   chainSamePerson: boolean;
 }
