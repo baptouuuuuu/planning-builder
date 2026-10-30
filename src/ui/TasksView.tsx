@@ -3,7 +3,7 @@ import type { Task } from '../domain/types';
 import { wouldCycle } from '../domain/types';
 import { Card, IntervalField, NumberField, btnDanger, btnGhost, inputCls } from './fields';
 
-type Relation = 'none' | 'follows' | 'followed';
+type Relation = 'none' | 'linked' | 'follows' | 'followed';
 
 function toggle(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
@@ -22,6 +22,7 @@ export function TasksView() {
         duration: 60,
         preferredPersonIds: [],
         dependsOn: [],
+        linkedTo: [],
         chainSamePerson: false,
       },
     ]);
@@ -33,28 +34,32 @@ export function TasksView() {
       name: `${t.name} (copie)`,
       preferredPersonIds: [...t.preferredPersonIds],
       dependsOn: [...t.dependsOn],
+      linkedTo: [...t.linkedTo],
     };
     setTasks([...tasks.slice(0, i + 1), copy, ...tasks.slice(i + 1)]);
   };
   const relationOf = (t: Task, o: Task): Relation =>
-    t.dependsOn.includes(o.id) ? 'follows' : o.dependsOn.includes(t.id) ? 'followed' : 'none';
+    t.linkedTo.includes(o.id) ? 'linked'
+    : t.dependsOn.includes(o.id) ? 'follows' : o.dependsOn.includes(t.id) ? 'followed' : 'none';
   /** Tâches sans le lien existant entre t et o, pour tester si un nouveau lien créerait une boucle. */
   const withoutLink = (t: Task, o: Task): Task[] =>
     tasks.map((x) =>
-      x.id === t.id ? { ...x, dependsOn: x.dependsOn.filter((d) => d !== o.id) }
-      : x.id === o.id ? { ...x, dependsOn: x.dependsOn.filter((d) => d !== t.id) }
+      x.id === t.id ? { ...x, dependsOn: x.dependsOn.filter((d) => d !== o.id), linkedTo: x.linkedTo.filter((d) => d !== o.id) }
+      : x.id === o.id ? { ...x, dependsOn: x.dependsOn.filter((d) => d !== t.id), linkedTo: x.linkedTo.filter((d) => d !== t.id) }
       : x,
     );
   const setRelation = (t: Task, o: Task, rel: Relation) =>
     setTasks(
       withoutLink(t, o).map((x) =>
-        rel === 'follows' && x.id === t.id ? { ...x, dependsOn: [...x.dependsOn, o.id] }
+        rel === 'linked' && x.id === t.id ? { ...x, linkedTo: [...x.linkedTo, o.id] }
+        : rel === 'linked' && x.id === o.id ? { ...x, linkedTo: [...x.linkedTo, t.id] }
+        : rel === 'follows' && x.id === t.id ? { ...x, dependsOn: [...x.dependsOn, o.id] }
         : rel === 'followed' && x.id === o.id ? { ...x, dependsOn: [...x.dependsOn, t.id] }
         : x,
       ),
     );
   const remove = (id: string) =>
-    setTasks(tasks.filter((t) => t.id !== id).map((t) => ({ ...t, dependsOn: t.dependsOn.filter((d) => d !== id) })));
+    setTasks(tasks.filter((t) => t.id !== id).map((t) => ({ ...t, dependsOn: t.dependsOn.filter((d) => d !== id), linkedTo: t.linkedTo.filter((d) => d !== id) })));
 
   return (
     <div className="space-y-4">
@@ -140,7 +145,7 @@ export function TasksView() {
             </fieldset>
 
             <fieldset>
-              <legend className="mb-1 text-sm font-medium">Ordre avec les autres tâches</legend>
+              <legend className="mb-1 text-sm font-medium">Liens avec les autres tâches</legend>
               <ul className="space-y-1">
                 {tasks
                   .filter((o) => o.id !== t.id)
@@ -157,7 +162,8 @@ export function TasksView() {
                           value={relationOf(t, o)}
                           onChange={(e) => setRelation(t, o, e.target.value as Relation)}
                         >
-                          <option value="none">Peu importe</option>
+                          <option value="none">Aucune relation</option>
+                          <option value="linked">Liée (même personne, ordre libre)</option>
                           <option value="follows" disabled={noFollow} title={noFollow ? 'Créerait une dépendance circulaire' : undefined}>
                             Doit suivre
                           </option>

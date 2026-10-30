@@ -38,6 +38,11 @@ export function validate(problem: Problem, assignments: Assignment[]): Conflict[
       if (dep && task.chainSamePerson && dep.personId !== a.personId)
         conflicts.push({ taskId: task.id, message: `Doit être faite par la même personne que « ${depTask?.name} ».` });
     }
+    for (const lId of task.linkedTo ?? []) {
+      const l = byTask.get(lId);
+      if (l && l.personId !== a.personId && task.id < lId)
+        conflicts.push({ taskId: task.id, message: `Doit être faite par la même personne que « ${taskMap.get(lId)?.name} » (liées).` });
+    }
   }
   for (let i = 0; i < assignments.length; i++) {
     for (let j = i + 1; j < assignments.length; j++) {
