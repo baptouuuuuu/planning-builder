@@ -16,9 +16,9 @@ const links = [
 export function App() {
   const { undo, redo, past, future } = useStore();
   return (
-    <div className="mx-auto flex min-h-screen max-w-7xl flex-col">
-      <header className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white/90 px-4 py-2 backdrop-blur">
-        <h1 className="mr-4 text-lg font-bold text-indigo-700">📅 Planning Builder</h1>
+    <div className="mx-auto flex h-dvh max-w-7xl flex-col overflow-hidden">
+      <header className="z-10 flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white/90 px-4 py-2 backdrop-blur">
+        <h1 className="mr-4 bg-gradient-to-r from-indigo-600 to-violet-500 bg-clip-text text-lg font-bold text-transparent">📅 Planning Builder</h1>
         <nav aria-label="Navigation principale" className="hidden gap-1 md:flex">
           {links.map(([to, label]) => (
             <NavLink
@@ -37,7 +37,7 @@ export function App() {
           <button className={btnGhost} onClick={redo} disabled={future.length === 0} aria-label="Rétablir">↷ Rétablir</button>
         </div>
       </header>
-      <main className="flex-1 p-4 pb-24 md:pb-4">
+      <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-4">
         <Routes>
           <Route path="/" element={<Navigate to="/planning" replace />} />
           <Route path="/planning" element={<PlanningView />} />
@@ -49,7 +49,7 @@ export function App() {
       </main>
       <nav
         aria-label="Navigation mobile"
-        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="z-10 grid shrink-0 grid-cols-4 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {links.map(([to, label]) => (
           <NavLink
