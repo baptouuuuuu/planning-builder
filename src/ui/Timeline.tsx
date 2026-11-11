@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { DAY, dayLabel, formatAbs, formatTime, pad } from '../domain/types';
 import { useStore } from '../state/store';
 
@@ -10,6 +10,31 @@ export function Timeline() {
   const pct = (m: number) => `${Math.min(100, Math.max(0, ((m - dayStart) / span) * 100))}%`;
   const [zoom, setZoom] = useState(1);
   const changeZoom = (z: number) => setZoom(Math.min(12, Math.max(1, Math.round(z * 100) / 100)));
+  // Pincement à deux doigts : le point entre les doigts reste ancré pendant le zoom.
+  const pinch = useRef<{ dist: number; zoom: number } | null>(null);
+  const anchor = useRef<{ el: HTMLElement; x: number; ratio: number } | null>(null);
+  const dist = (t: React.TouchList) => Math.hypot(t[0]!.clientX - t[1]!.clientX, t[0]!.clientY - t[1]!.clientY);
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) pinch.current = { dist: dist(e.touches), zoom };
+  };
+  const onTouchMove = (e: React.TouchEvent<HTMLElement>) => {
+    if (e.touches.length !== 2 || !pinch.current) return;
+    const el = e.currentTarget;
+    const nz = Math.min(12, Math.max(1, (pinch.current.zoom * dist(e.touches)) / pinch.current.dist));
+    if (nz === zoom) return;
+    const cx = (e.touches[0]!.clientX + e.touches[1]!.clientX) / 2 - el.getBoundingClientRect().left;
+    anchor.current = { el, x: cx, ratio: nz / zoom };
+    setZoom(nz);
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) pinch.current = null;
+  };
+  useLayoutEffect(() => {
+    const a = anchor.current;
+    if (!a) return;
+    a.el.scrollLeft = (a.el.scrollLeft + a.x) * a.ratio - a.x;
+    anchor.current = null;
+  }, [zoom]);
   // Plus on zoome, plus les repères sont fins.
   const tick = zoom >= 5 ? 5 : zoom >= 3 ? 15 : zoom >= 1.7 ? 30 : 60;
   const hours: number[] = [];
@@ -22,6 +47,7 @@ export function Timeline() {
     <div className="space-y-6">
       <div className="flex items-center gap-2 text-sm">
         <span className="text-slate-600">Zoom</span>
+        <span className="text-xs text-slate-500 md:hidden">(pincez le planning)</span>
         <button className="rounded border px-2" aria-label="Dézoomer" onClick={() => changeZoom(zoom / 1.5)} disabled={zoom <= 1}>−</button>
         <input
           type="range" min={1} max={12} step={0.25} value={zoom} aria-label="Niveau de zoom"
@@ -29,7 +55,7 @@ export function Timeline() {
         />
         <button className="rounded border px-2" aria-label="Zoomer" onClick={() => changeZoom(zoom * 1.5)} disabled={zoom >= 12}>+</button>
         <button className="rounded border px-2" onClick={() => changeZoom(1)} disabled={zoom === 1}>Réinitialiser</button>
-        <span className="text-slate-500">×{zoom}</span>
+        <span className="text-slate-500">×{Math.round(zoom * 10) / 10}</span>
       </div>
       {Array.from({ length: settings.horizonDays }, (_, d) => {
         const base = d * DAY;
@@ -43,7 +69,12 @@ export function Timeline() {
               {dayLabel(d, startDate)} · {startsToday} tâche(s)
             </h3>
             <div
-              className="overflow-x-auto rounded-xl border border-slate-200 bg-white"
+              className="overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm"
+              style={{ touchAction: 'pan-x pan-y', overscrollBehavior: 'contain' }}
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+              onTouchCancel={onTouchEnd}
               onWheel={(e) => {
                 if (e.ctrlKey) changeZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
               }}
@@ -93,7 +124,7 @@ export function Timeline() {
                                 a.locked ? 'verrouillé (cliquer pour déverrouiller)' : 'cliquer pour verrouiller'
                               }`}
                               className={`absolute inset-y-1 overflow-hidden rounded-md px-1 text-left text-xs font-medium text-white shadow ${
-                                a.locked ? 'ring-2 ring-slate-900' : ''
+                                a.locked ? 'ring-2 ring-white' : ''
                               }`}
                               style={{
                                 left: pct(s),
