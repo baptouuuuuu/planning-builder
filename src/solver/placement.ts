@@ -1,12 +1,13 @@
 import { DAY, scheduledTasks } from '../domain/types';
 import type { Assignment, Interval, Problem } from '../domain/types';
+import { isPossiblePerson } from './validate';
 
 /** Intervalles inclusifs des minutes de début possibles pour une affectation. */
 export function validStarts(problem: Problem, assignments: Assignment[], taskId: string, personId: string): Interval[] {
   const tasks = scheduledTasks(problem.tasks);
   const task = tasks.find((t) => t.id === taskId);
   const person = problem.people.find((p) => p.id === personId);
-  if (!task || !person || task.duration <= 0) return [];
+  if (!task || !person || task.duration <= 0 || !isPossiblePerson(task, personId)) return [];
 
   const byTask = new Map(tasks.map((t) => [t.id, t]));
   const placed = new Map(assignments.map((a) => [a.taskId, a]));

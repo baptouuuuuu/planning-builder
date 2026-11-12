@@ -11,9 +11,30 @@ export function Timeline() {
   const [showDetails, setShowDetails] = useState(false);
   const [candidate, setCandidate] = useState<{ personId: string; start: number } | null>(null);
   const [message, setMessage] = useState('');
-  const drag = useRef<{ taskId: string; x: number; y: number; moved: boolean } | null>(null);
+  const drag = useRef<{
+    taskId: string; x: number; y: number; pointerX: number; pointerY: number; moved: boolean;
+    offsetX: number; offsetY: number; startOffsetY: number; width: number; height: number;
+    name: string; color: string;
+  } | null>(null);
+  const [preview, setPreview] = useState<{ x: number; y: number; width: number; height: number; name: string; color: string } | null>(null);
+  const scrollFrame = useRef<number | null>(null);
+  const press = useRef<{ taskId: string; x: number; y: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
   const timelineRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const clickOutside = (event: MouseEvent) => {
+      if (!(event.target instanceof Element) || event.target.closest('button, input, select, textarea, a, label, [role="button"]')) return;
+      setSelectedId(null);
+      setShowDetails(false);
+      setCandidate(null);
+      setMessage('');
+    };
+    document.addEventListener('click', clickOutside);
+    return () => document.removeEventListener('click', clickOutside);
+  }, []);
+  useEffect(() => () => {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+  }, []);
   useEffect(() => {
     const element = timelineRef.current;
     if (!element) return;
@@ -68,14 +89,52 @@ export function Timeline() {
     setCandidate({ personId: assignment.personId, start: assignment.start });
     setMessage('');
   };
-  const dropAt = (x: number, y: number) => {
+  const dropAt = (x: number, y: number, startOffsetY: number) => {
     const column = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-timeline-column]');
     if (!column) return null;
     const rect = column.getBoundingClientRect();
     const day = Number(column.dataset.day);
     const personId = column.dataset.personId;
     if (!personId || y < rect.top || y > rect.bottom) return null;
-    return { personId, start: Math.round(day * DAY + settings.dayStart + (y - rect.top) / rect.height * span) };
+    return { personId, start: Math.round(day * DAY + settings.dayStart + (y - startOffsetY - rect.top) / rect.height * span) };
+  };
+  const stopDrag = () => {
+    drag.current = null;
+    setPreview(null);
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = null;
+  };
+  const updateDrag = () => {
+    const current = drag.current;
+    if (!current?.moved) return;
+    setPreview({
+      x: current.pointerX - current.offsetX, y: current.pointerY - current.offsetY,
+      width: current.width, height: current.height, name: current.name, color: current.color,
+    });
+    const target = dropAt(current.pointerX, current.pointerY, current.startOffsetY);
+    if (target && target.start >= 0) setCandidate(target);
+  };
+  const autoScroll = () => {
+    const current = drag.current;
+    if (!current?.moved) { scrollFrame.current = null; return; }
+    const edge = 60;
+    const speed = (position: number, start: number, end: number) =>
+      position < start + edge ? -Math.min(18, (start + edge - position) / 3)
+        : position > end - edge ? Math.min(18, (position - end + edge) / 3) : 0;
+    const verticalScroller = timelineRef.current?.closest('main');
+    if (verticalScroller) {
+      const rect = verticalScroller.getBoundingClientRect();
+      verticalScroller.scrollTop += speed(current.pointerY, rect.top, rect.bottom);
+    } else {
+      window.scrollBy(0, speed(current.pointerY, 0, window.innerHeight));
+    }
+    const scroller = document.elementFromPoint(current.pointerX, current.pointerY)?.closest<HTMLElement>('.overflow-x-auto');
+    if (scroller) {
+      const rect = scroller.getBoundingClientRect();
+      scroller.scrollLeft += speed(current.pointerX, rect.left, rect.right);
+    }
+    updateDrag();
+    scrollFrame.current = requestAnimationFrame(autoScroll);
   };
   const applyMove = (taskId: string, target: { personId: string; start: number } | null) => {
     if (target && moveAssignment(taskId, target.personId, target.start)) {
@@ -190,36 +249,55 @@ export function Timeline() {
                               key={a.taskId}
                               onClick={() => {
                                 if (suppressClick.current) { suppressClick.current = false; return; }
+                                if (press.current?.taskId === a.taskId && press.current.moved) { press.current = null; return; }
+                                press.current = null;
                                 select(a.taskId);
                                 setShowDetails(true);
                               }}
                               onPointerDown={(event) => {
-                                if (event.button !== 0) return;
                                 suppressClick.current = false;
-                                select(a.taskId);
-                                drag.current = { taskId: a.taskId, x: event.clientX, y: event.clientY, moved: false };
+                                if (event.button !== 0) return;
+                                press.current = { taskId: a.taskId, x: event.clientX, y: event.clientY, moved: false };
+                                if (selectedId !== a.taskId) return;
+                                const rect = event.currentTarget.getBoundingClientRect();
+                                const column = event.currentTarget.parentElement!.getBoundingClientRect();
+                                const offsetY = event.clientY - rect.top;
+                                drag.current = {
+                                  taskId: a.taskId, x: event.clientX, y: event.clientY,
+                                  pointerX: event.clientX, pointerY: event.clientY, moved: false,
+                                  offsetX: event.clientX - rect.left, offsetY,
+                                  startOffsetY: offsetY + Math.max(0, dayStart - s) * column.height / span,
+                                  width: rect.width, height: rect.height, name: t.name, color: p.color,
+                                };
                                 event.currentTarget.setPointerCapture(event.pointerId);
                               }}
                               onPointerMove={(event) => {
+                                const pending = press.current;
+                                if (pending?.taskId === a.taskId && Math.hypot(event.clientX - pending.x, event.clientY - pending.y) > 5)
+                                  pending.moved = true;
                                 const current = drag.current;
                                 if (!current || current.taskId !== a.taskId) return;
-                                if (Math.hypot(event.clientX - current.x, event.clientY - current.y) > 5) current.moved = true;
+                                current.pointerX = event.clientX;
+                                current.pointerY = event.clientY;
+                                if (!current.moved && Math.hypot(event.clientX - current.x, event.clientY - current.y) > 5) {
+                                  current.moved = true;
+                                  scrollFrame.current = requestAnimationFrame(autoScroll);
+                                }
                                 if (current.moved) {
-                                  const target = dropAt(event.clientX, event.clientY);
-                                  if (target && target.start >= 0) setCandidate(target);
+                                  updateDrag();
                                 }
                               }}
                               onPointerUp={(event) => {
                                 const current = drag.current;
                                 if (!current || current.taskId !== a.taskId) return;
-                                drag.current = null;
                                 if (current.moved) {
                                   suppressClick.current = true;
-                                  applyMove(a.taskId, dropAt(event.clientX, event.clientY));
+                                  applyMove(a.taskId, dropAt(event.clientX, event.clientY, current.startOffsetY));
                                   setShowDetails(true);
                                 }
+                                stopDrag();
                               }}
-                              onPointerCancel={() => { drag.current = null; }}
+                              onPointerCancel={() => { press.current = null; stopDrag(); }}
                               aria-pressed={selectedId === a.taskId}
                               title={`${t.name} · ${formatAbs(a.start, startDate)} → ${formatTime(a.start + t.duration - Math.floor(a.start / DAY) * DAY)} · ${
                                 a.locked ? 'verrouillé' : 'cliquer pour sélectionner ou glisser pour déplacer'
@@ -228,7 +306,7 @@ export function Timeline() {
                                 selectedId === a.taskId ? 'ring-2 ring-indigo-600' : a.locked ? 'ring-2 ring-white' : ''
                               }`}
                               style={{
-                                touchAction: 'none',
+                                touchAction: selectedId === a.taskId ? 'none' : 'pan-x pan-y',
                                 top: pct(s),
                                 height: `calc(${pct(s + t.duration)} - ${pct(s)})`,
                                 backgroundColor: p.color,
@@ -243,6 +321,12 @@ export function Timeline() {
                             </button>
                           );
                         })}
+                        {preview && (
+                          <div aria-hidden="true" className="pointer-events-none fixed z-50 overflow-hidden rounded-md px-2 text-xs font-medium text-white opacity-90 shadow-lg"
+                            style={{ left: preview.x, top: preview.y, width: preview.width, height: preview.height, backgroundColor: preview.color }}>
+                            {preview.name}
+                          </div>
+                        )}
                     </div>
                   </div>
                 </div>

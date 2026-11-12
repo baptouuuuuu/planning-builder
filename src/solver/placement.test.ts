@@ -38,6 +38,20 @@ describe('validStarts', () => {
     expect(validStarts(problem, assignments, 'middle', 'missing')).toEqual([]);
   });
 
+  it('refuse les personnes exclues, y compris si la liste est vide', () => {
+    const restricted: Problem = {
+      ...problem,
+      tasks: problem.tasks.map((task) => ({
+        ...task, subtasks: task.subtasks.map((subtask) => subtask.id === 'middle'
+          ? { ...subtask, possiblePersonIds: ['alice'] } : subtask),
+      })),
+    };
+    expect(validStarts(restricted, assignments, 'middle', 'bob')).toEqual([]);
+    expect(validStarts(restricted, assignments, 'middle', 'alice')).not.toEqual([]);
+    restricted.tasks[0]!.subtasks[1]!.possiblePersonIds = [];
+    expect(validStarts(restricted, assignments, 'middle', 'alice')).toEqual([]);
+  });
+
   it('accepte les disponibilités de nuit et limite les débuts à l’horizon', () => {
     const overnight: Problem = {
       ...problem,

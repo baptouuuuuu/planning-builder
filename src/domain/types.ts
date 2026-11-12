@@ -30,6 +30,8 @@ export interface Subtask {
   duration: number;
   /** Préférence souple de personnes. */
   preferredPersonIds: string[];
+  /** Liste restrictive ; absente signifie que toute personne est possible. */
+  possiblePersonIds?: string[];
   /** Tâches qui doivent être terminées avant le début de celle-ci. */
   dependsOn: string[];
   /** Tâches liées (relation symétrique, sans ordre): faites par la même personne. */

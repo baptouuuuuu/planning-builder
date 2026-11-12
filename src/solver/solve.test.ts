@@ -107,6 +107,18 @@ describe('solver', () => {
     expect(solve(p, { seed: 5 }).assignments[0]?.personId).toBe('b');
   });
 
+  it('respecte les personnes possibles même si une autre est préférée et signale les verrouillages incompatibles', () => {
+    const p = mk([person('a', [0, 120]), person('b', [0, 120])], [
+      task('t', 60, { possiblePersonIds: ['a'], preferredPersonIds: ['b'] }),
+    ]);
+    expect(solve(p, { seed: 1 }).assignments[0]?.personId).toBe('a');
+    const locked = [{ taskId: 't', personId: 'b', start: 0, locked: true }];
+    expect(solve(p, { seed: 1, locked }).conflicts[0]?.message).toContain('ne peut pas');
+    const none = mk(p.people, [task('t', 60, { possiblePersonIds: [] })]);
+    expect(solve(none, { seed: 1 }).unscheduled[0]?.code).toBe('no-person');
+    expect(solve(mk(p.people, [task('t', 60)]), { seed: 1 }).assignments).toHaveLength(1);
+  });
+
   it('is reproducible per seed and varies across seeds', () => {
     const tasks = Array.from({ length: 8 }, (_, i) => task(`t${i}`, 45));
     const p = mk([person('a', [8 * H, 18 * H]), person('b', [8 * H, 18 * H])], tasks);
