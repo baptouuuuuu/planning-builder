@@ -163,3 +163,19 @@ describe('équilibrage', () => {
     expect(r.assignments.filter((a) => a.personId === 'a')).toHaveLength(2);
   });
 });
+
+describe('compact', () => {
+  it('rapproche les sous-tâches d\'un groupe compact', () => {
+    const sub = (id: string): Subtask => ({
+      id, name: id, duration: H, preferredPersonIds: [], dependsOn: [], linkedTo: [], chainSamePerson: false,
+    });
+    const problem: Problem = {
+      people: [person('a', [0, 10 * H], [20 * H, 30 * H])],
+      tasks: [{ id: 'g', name: 'g', compact: true, subtasks: [sub('s1'), sub('s2')] }],
+      settings: { horizonDays: 2, dayStart: 0, dayEnd: 1440 },
+    };
+    const { assignments } = solve(problem, { seed: 1 });
+    const [x, y] = assignments.map((a) => a.start).sort((p, q) => p - q);
+    expect(y! - x!).toBe(H);
+  });
+});
