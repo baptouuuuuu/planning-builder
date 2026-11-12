@@ -7,7 +7,7 @@ Générateur de planning d'équipe sous contraintes. 100 % front-end (React + Ty
 - **Équipe** : personnes + plages de disponibilité (jour + heure à la minute).
 - **Tâches** : durée, plage horaire imposée (dure), plage préférée (souple), personnes préférées, dépendances / enchaînement (option « même personne »).
 - **Contraintes globales** : nombre de jours, plage d'affichage, export JSON, jeu de données d'exemple.
-- **Planning** : timeline par jour et par personne, **Générer**, **Régénérer** (nouvelle seed), **verrouillage** de créneaux (clic sur un bloc) puis régénération du reste uniquement, **Annuler/Rétablir** (historique de 100 états).
+- **Planning** : plannings verticaux par jour et par personne, **Générer**, **Régénérer** (nouvelle seed), **verrouillage** de créneaux (clic sur un bloc) puis régénération du reste uniquement, **Annuler/Rétablir** (historique de 100 états).
 - **Conflits & non planifiées** : avertissement, solution maximale, raison par tâche non planifiée, score.
 - Données persistées en `localStorage`.
 
