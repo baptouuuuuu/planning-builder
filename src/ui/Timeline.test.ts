@@ -44,7 +44,7 @@ describe('Timeline', () => {
     expect(html).toContain('(suite) → 01:00');
     expect(html).toContain('top:0%;height:calc(50% - 0%)');
     expect(html).toContain('top:0%;height:calc(75% - 0%)');
-    expect(html).toContain('Niveau de zoom');
+    expect(html).not.toContain('Niveau de zoom');
     expect(html).toContain('overflow-x-auto');
     expect(html).toContain('Alice');
     expect(html).toContain('Bob');
