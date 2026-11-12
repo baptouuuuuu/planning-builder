@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { exportPlanningText } from '../domain/exportText';
+import { scheduledTasks } from '../domain/types';
 import { useStore } from '../state/store';
 import { IssuesPanel } from './IssuesPanel';
 import { Timeline } from './Timeline';
@@ -9,7 +10,7 @@ export function PlanningView() {
   const { generate, regenerate, clearUnlocked, assignments, tasks, people, settings } = useStore();
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    await navigator.clipboard.writeText(exportPlanningText(people, tasks, assignments, settings));
+    await navigator.clipboard.writeText(exportPlanningText(people, scheduledTasks(tasks), assignments, settings));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

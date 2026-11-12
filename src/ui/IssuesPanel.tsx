@@ -1,9 +1,11 @@
 import { useStore } from '../state/store';
+import { scheduledTasks } from '../domain/types';
 import { Card } from './fields';
 
 export function IssuesPanel() {
   const { result, tasks, assignments } = useStore();
-  const name = (id: string) => tasks.find((t) => t.id === id)?.name ?? id;
+  const scheduled = scheduledTasks(tasks);
+  const name = (id: string) => scheduled.find((t) => t.id === id)?.name ?? id;
 
   if (!result) return <Card><p className="text-sm text-slate-500">
     {assignments.length ? 'Le planning a été modifié. Régénérez-le pour vérifier les contraintes.' : "Aucun planning généré pour l'instant."}
@@ -20,7 +22,7 @@ export function IssuesPanel() {
       </p>
       {unscheduled.length > 0 && (
         <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          ⚠️ Planning complet impossible : solution maximale proposée ({result.assignments.length}/{tasks.length} tâches
+          ⚠️ Planning complet impossible : solution maximale proposée ({result.assignments.length}/{scheduled.length} tâches
           planifiées).
         </div>
       )}
