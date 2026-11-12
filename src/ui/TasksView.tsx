@@ -56,11 +56,13 @@ export function TasksView() {
       const subtasks = name === undefined ? task.subtasks : task.subtasks.map((subtask) =>
         subtask.name === task.name ? { ...subtask, name } : subtask,
       );
-      return { ...task, ...patch, subtasks };
+      return { ...task, ...patch, subtasks: patch.subtasks ?? subtasks };
     }));
   const add = () => {
     const id = crypto.randomUUID();
-    setTasks([...tasks, { id, name: `Tâche ${tasks.length + 1}`, subtasks: [makeSubtask(id, `Tâche ${tasks.length + 1}`)] }]);
+    const name = `Tâche ${tasks.length + 1}`;
+    setTasks([...tasks, { id, name, subtasks: [makeSubtask(crypto.randomUUID(), name)] }]);
+    setFocusId(id);
   };
   const duplicate = (task: Task) => {
     const i = tasks.findIndex((x) => x.id === task.id);
@@ -71,6 +73,7 @@ export function TasksView() {
   const addSubtask = (task: Task) => {
     const id = crypto.randomUUID();
     updateGroup(task.id, { subtasks: [...task.subtasks, makeSubtask(id, `Sous-tâche ${task.subtasks.length + 1}`)] });
+    setFocusId(id);
   };
   const removeSubtask = (id: string) => {
     const remaining = subtasks
@@ -172,7 +175,7 @@ export function TasksView() {
                     <div className="flex items-center gap-2">
                       <input
                         aria-label="Nom de la sous-tâche"
-                        ref={focusId === subtask.id ? nameInput : undefined}
+                        ref={focusId === subtask.id && focusId !== task.id ? nameInput : undefined}
                         className={`${inputCls} flex-1 font-medium`}
                         value={subtask.name}
                         onChange={(e) => updateSubtask(subtask.id, { name: e.target.value })}
@@ -202,9 +205,9 @@ export function TasksView() {
                     </fieldset>
 
                     <fieldset>
-                      <legend className="mb-1 text-sm font-medium">Relation avec une tâche</legend>
+                      <legend className="mb-1 text-sm font-medium">Relation avec une sous-tâche</legend>
                       <p className="mb-2 text-xs text-slate-500">
-                        Une seule tâche liée pour la même personne ; les dépendances restent indépendantes.
+                        Une seule sous-tâche liée pour la même personne ; les dépendances restent indépendantes.
                       </p>
                       {(subtask.linkedTo.length > 0 || subtask.dependsOn.length > 0
                         || subtasks.some((other) => other.dependsOn.includes(subtask.id))) && (
@@ -218,10 +221,10 @@ export function TasksView() {
                         </p>
                       )}
                       <div className="flex flex-wrap gap-2">
-                        <select aria-label={`Tâche à lier à ${subtask.name}`} className={inputCls}
+                        <select aria-label={`Sous-tâche à lier à ${subtask.name}`} className={inputCls}
                           value={target?.id ?? ''}
                           onChange={(e) => setSelectedTargets({ ...selectedTargets, [subtask.id]: e.target.value })}>
-                          <option value="">Choisir une tâche</option>
+                          <option value="">Choisir une sous-tâche</option>
                           {subtasks.filter((other) => other.id !== subtask.id)
                             .map((other) => <option key={other.id} value={other.id}>{names.get(other.id) ?? other.name}</option>)}
                         </select>
@@ -240,7 +243,7 @@ export function TasksView() {
                       </div>
                       {subtask.linkedTo.length > 0 && (
                         <label className="mt-2 flex items-center gap-2 text-sm">
-                          Marge minimale entre les tâches liées
+                          Marge minimale entre les sous-tâches liées
                           <NumberField label={`Marge pour ${subtask.name} en minutes`} className={`${inputCls} w-20`}
                             min={0} value={subtask.linkGap ?? 0}
                             onChange={(linkGap) => updateSubtask(subtask.id, { linkGap })} /> min

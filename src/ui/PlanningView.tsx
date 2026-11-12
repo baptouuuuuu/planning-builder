@@ -30,6 +30,7 @@ export function PlanningView() {
       </div>
       <p className="text-sm text-slate-500">
         Cliquez sur un créneau pour le verrouiller 🔒 : « Régénérer » ne replanifie que le reste. {locked} verrouillé(s).
+        Zoomez sur le planning à la molette ou avec deux doigts.
       </p>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Timeline />

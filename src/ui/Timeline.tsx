@@ -1,10 +1,52 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DAY, dayLabel, formatAbs, formatTime, scheduledTasks } from '../domain/types';
 import { useStore } from '../state/store';
 
 export function Timeline() {
   const { people, tasks, assignments, settings, toggleLock } = useStore();
   const [zoom, setZoom] = useState(1);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = timelineRef.current;
+    if (!element) return;
+    const clamp = (value: number) => Math.max(0.5, Math.min(2.5, value));
+    let pinchDistance: number | null = null;
+    const distance = (touches: TouchList) =>
+      Math.hypot(touches[0]!.clientX - touches[1]!.clientX, touches[0]!.clientY - touches[1]!.clientY);
+    const wheel = (event: WheelEvent) => {
+      if (event.deltaY === 0 || event.shiftKey) return;
+      event.preventDefault();
+      const delta = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? event.deltaY * 16
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? event.deltaY * element.clientHeight : event.deltaY;
+      setZoom((current) => clamp(current * Math.exp(-delta * 0.001)));
+    };
+    const touchStart = (event: TouchEvent) => {
+      if (event.touches.length === 2) pinchDistance = distance(event.touches);
+    };
+    const touchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 2 || pinchDistance === null) return;
+      event.preventDefault();
+      const next = distance(event.touches);
+      const ratio = pinchDistance > 0 ? next / pinchDistance : 1;
+      setZoom((current) => clamp(current * ratio));
+      pinchDistance = next;
+    };
+    const touchEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2) pinchDistance = null;
+    };
+    element.addEventListener('wheel', wheel, { passive: false });
+    element.addEventListener('touchstart', touchStart, { passive: true });
+    element.addEventListener('touchmove', touchMove, { passive: false });
+    element.addEventListener('touchend', touchEnd);
+    element.addEventListener('touchcancel', touchEnd);
+    return () => {
+      element.removeEventListener('wheel', wheel);
+      element.removeEventListener('touchstart', touchStart);
+      element.removeEventListener('touchmove', touchMove);
+      element.removeEventListener('touchend', touchEnd);
+      element.removeEventListener('touchcancel', touchEnd);
+    };
+  }, [people.length > 0]);
   const taskMap = new Map(scheduledTasks(tasks).map((t) => [t.id, t]));
   const { dayStart, dayEnd, startDate } = settings;
   const span = Math.max(60, dayEnd - dayStart);
@@ -15,13 +57,7 @@ export function Timeline() {
   if (people.length === 0) return <p className="text-slate-500">Ajoutez des personnes pour voir le planning.</p>;
 
   return (
-    <div className="min-w-0 space-y-6">
-      <label className="flex items-center gap-2 text-sm">
-        Zoom vertical
-        <input aria-label="Niveau de zoom" type="range" min="0.5" max="2.5" step="0.25"
-          value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
-        <span>{Math.round(zoom * 100)} %</span>
-      </label>
+    <div ref={timelineRef} className="min-w-0 space-y-6" style={{ touchAction: 'pan-x pan-y' }}>
       {Array.from({ length: settings.horizonDays }, (_, d) => {
         const base = d * DAY;
         const end = (a: { taskId: string; start: number }) => a.start + (taskMap.get(a.taskId)?.duration ?? 0);
