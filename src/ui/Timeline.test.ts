@@ -17,13 +17,17 @@ afterEach(() => useStore.setState(initialState, true));
 describe('Timeline', () => {
   it('affiche les personnes côte à côte, le zoom et la suite des tâches', () => {
     const task: Task = {
-      id: 'task',
+      id: 'parent',
       name: 'Intervention',
-      duration: 90,
-      preferredPersonIds: [],
-      dependsOn: [],
-      linkedTo: [],
-      chainSamePerson: false,
+      subtasks: [{
+        id: 'task',
+        name: 'Intervention',
+        duration: 90,
+        preferredPersonIds: [],
+        dependsOn: [],
+        linkedTo: [],
+        chainSamePerson: false,
+      }],
     };
     useStore.setState({
       people: [
@@ -31,7 +35,7 @@ describe('Timeline', () => {
         { id: 'person2', name: 'Bob', color: '#654321', availability: [] },
       ],
       tasks: [task],
-      assignments: [{ taskId: task.id, personId: 'person', start: DAY - 30, locked: false }],
+      assignments: [{ taskId: task.subtasks[0]!.id, personId: 'person', start: DAY - 30, locked: false }],
       settings: { horizonDays: 2, dayStart: 0, dayEnd: 120 },
     });
 
@@ -45,7 +49,7 @@ describe('Timeline', () => {
     expect(html).toContain('Alice');
     expect(html).toContain('Bob');
 
-    useStore.getState().toggleLock(task.id);
+    useStore.getState().toggleLock(task.subtasks[0]!.id);
     expect(renderToStaticMarkup(createElement(Timeline))).toContain('aria-pressed="true"');
   });
 });

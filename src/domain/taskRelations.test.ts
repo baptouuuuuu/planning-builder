@@ -1,39 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import type { Task } from './types';
-import { duplicateTask, normalizeLinks, setTaskRelation, updateTask } from './taskRelations';
+import type { ScheduledTask, Subtask } from './types';
+import { duplicateTask, migrateLegacyTasks, normalizeLinks, setTaskRelation, updateTask } from './taskRelations';
 
-const task = (id: string, extra: Partial<Task> = {}): Task => ({
+const task = (id: string, extra: Partial<Subtask> = {}): Subtask => ({
   id, name: id, duration: 60, preferredPersonIds: [], dependsOn: [], linkedTo: [], chainSamePerson: false, ...extra,
+});
+const legacyTask = (id: string, extra: Partial<ScheduledTask> = {}): ScheduledTask => ({
+  ...task(id),
+  ...extra,
 });
 
 describe('relations entre tâches', () => {
-  it('copie les plages de la tâche choisie puis synchronise les modifications dans les deux sens', () => {
-    const a = task('a', { window: { start: 10, end: 100 } });
-    const b = task('b', { preferredWindow: { start: 20, end: 80 } });
-    let tasks = setTaskRelation([a, b], a, b, 'linked');
-    expect(tasks[0]?.window).toBeUndefined();
-    expect(tasks[0]?.preferredWindow).toEqual(b.preferredWindow);
-    tasks = updateTask(tasks, 'a', { window: { start: 30, end: 90 }, linkGap: 7 });
-    expect(tasks[1]?.window).toEqual({ start: 30, end: 90 });
-    expect(tasks[1]?.linkGap).toBe(7);
-    tasks = updateTask(tasks, 'b', { preferredWindow: undefined });
-    expect(tasks[0]?.preferredWindow).toBeUndefined();
-  });
-
-  it('remplace le lien précédent sans conserver de lien dans la copie', () => {
+  it('remplace le lien précédent, synchronise sa marge et ne duplique pas les liens externes', () => {
     const a = task('a');
     const b = task('b');
     const c = task('c');
     const first = setTaskRelation([a, b, c], a, b, 'linked');
     const next = setTaskRelation(first, first[0]!, first[2]!, 'linked');
     expect(next.map((t) => t.linkedTo)).toEqual([['c'], [], ['a']]);
-    expect(duplicateTask(next[0]!, 'copy').linkedTo).toEqual([]);
+    const updated = updateTask(next, 'a', { linkGap: 7 });
+    expect(updated[2]?.linkGap).toBe(7);
+    const copy = duplicateTask({ id: 'group', name: 'Group', subtasks: [updated[0]!] }, 'copy', () => 'copy-a');
+    expect(copy.subtasks[0]?.linkedTo).toEqual([]);
   });
 
   it('migre les anciens liens multiples et plages différentes sans modifier les dépendances', () => {
-    const a = task('a', { linkedTo: ['b', 'c'], dependsOn: ['c'], window: { start: 0, end: 100 } });
-    const b = task('b', { linkedTo: ['a'], preferredWindow: { start: 10, end: 90 } });
-    const c = task('c', { linkedTo: ['a'] });
+    const a = legacyTask('a', { linkedTo: ['b', 'c'], dependsOn: ['c'], window: { start: 0, end: 100 } });
+    const b = legacyTask('b', { linkedTo: ['a'], preferredWindow: { start: 10, end: 90 } });
+    const c = legacyTask('c', { linkedTo: ['a'] });
     const migrated = normalizeLinks([a, b, c]);
     expect(migrated.tasks.map((t) => t.linkedTo)).toEqual([['b'], ['a'], []]);
     expect(migrated.tasks[0]?.dependsOn).toEqual(['c']);
@@ -46,11 +40,25 @@ describe('relations entre tâches', () => {
 
   it('répare les liens asymétriques et supprime les références invalides', () => {
     const migrated = normalizeLinks([
-      task('a', { linkedTo: ['b', 'missing', 'a'] }),
-      task('b', { linkGap: 5 }),
+      legacyTask('a', { linkedTo: ['b', 'missing', 'a'] }),
+      legacyTask('b', { linkGap: 5 }),
     ]);
     expect(migrated.tasks.map((t) => t.linkedTo)).toEqual([['b'], ['a']]);
     expect(migrated.tasks.map((t) => t.linkGap)).toEqual([5, 5]);
     expect(migrated.changes).toHaveLength(4);
+  });
+
+  it('convertit les anciennes tâches en groupes tout en gardant les identifiants planifiés', () => {
+    const a = legacyTask('a', { linkedTo: ['b'], window: { start: 5, end: 100 } });
+    const b = legacyTask('b', {
+      linkedTo: ['a'],
+      dependsOn: ['a'],
+      window: { start: 5, end: 100 },
+    });
+    const migrated = migrateLegacyTasks([a, b]);
+    expect(migrated.tasks).toHaveLength(1);
+    expect(migrated.tasks[0]?.subtasks.map((subtask) => subtask.id)).toEqual(['a', 'b']);
+    expect(migrated.tasks[0]?.subtasks[1]?.dependsOn).toEqual(['a']);
+    expect(migrated.tasks[0]?.window).toEqual({ start: 5, end: 100 });
   });
 });

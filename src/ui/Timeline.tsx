@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { DAY, dayLabel, formatAbs, formatTime } from '../domain/types';
+import { DAY, dayLabel, formatAbs, formatTime, scheduledTasks } from '../domain/types';
 import { useStore } from '../state/store';
 
 export function Timeline() {
   const { people, tasks, assignments, settings, toggleLock } = useStore();
   const [zoom, setZoom] = useState(1);
-  const taskMap = new Map(tasks.map((t) => [t.id, t]));
+  const taskMap = new Map(scheduledTasks(tasks).map((t) => [t.id, t]));
   const { dayStart, dayEnd, startDate } = settings;
   const span = Math.max(60, dayEnd - dayStart);
   const pct = (m: number) => `${Math.min(100, Math.max(0, ((m - dayStart) / span) * 100))}%`;

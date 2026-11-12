@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { solve } from './solve';
 import { validate } from './validate';
-import type { Person, Problem, Task } from '../domain/types';
+import type { Person, Problem, Subtask, Task } from '../domain/types';
 
 const H = 60;
 const person = (id: string, ...av: [number, number][]): Person => ({
@@ -10,16 +10,29 @@ const person = (id: string, ...av: [number, number][]): Person => ({
   color: '#000',
   availability: av.map(([s, e]) => ({ start: s, end: e })),
 });
-const task = (id: string, duration: number, extra: Partial<Task> = {}): Task => ({
-  id,
-  name: id,
-  duration,
-  preferredPersonIds: [],
-  dependsOn: [],
-  linkedTo: [],
-  chainSamePerson: false,
-  ...extra,
-});
+const task = (
+  id: string,
+  duration: number,
+  extra: Partial<Subtask> & Pick<Partial<Task>, 'window' | 'preferredWindow'> = {},
+): Task => {
+  const { window, preferredWindow, ...subtask } = extra;
+  return {
+    id: `parent:${id}`,
+    name: id,
+    window,
+    preferredWindow,
+    subtasks: [{
+      id,
+      name: id,
+      duration,
+      preferredPersonIds: [],
+      dependsOn: [],
+      linkedTo: [],
+      chainSamePerson: false,
+      ...subtask,
+    }],
+  };
+};
 const mk = (people: Person[], tasks: Task[]): Problem => ({
   people,
   tasks,

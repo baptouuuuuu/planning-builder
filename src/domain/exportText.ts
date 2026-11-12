@@ -1,10 +1,10 @@
-import type { Assignment, Person, Settings, Task } from './types';
+import type { Assignment, Person, ScheduledTask, Settings } from './types';
 import { DAY, dayLabel, formatTime } from './types';
 
 /** Résumé texte: par jour, puis par personne, une ligne par tâche. */
 export function exportPlanningText(
   people: Person[],
-  tasks: Task[],
+  tasks: ScheduledTask[],
   assignments: Assignment[],
   settings: Settings,
 ): string {
