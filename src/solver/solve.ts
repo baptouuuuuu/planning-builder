@@ -40,19 +40,11 @@ function feasible(c: Ctx, task: Task, person: Person, start: number, busy: Inter
     const d = c.placed.get(depId);
     if (!d) return false;
     if (END(c, d) > start) return false;
-    if (task.chainSamePerson && d.personId !== person.id) return false;
-  }
-  for (const lId of task.linkedTo) {
-    const l = c.placed.get(lId);
-    if (!l) continue;
-    const gap = Math.max(task.linkGap ?? 0, c.tasks.get(lId)?.linkGap ?? 0);
-    if (l.personId !== person.id || !(end + gap <= l.start || END(c, l) + gap <= start)) return false;
   }
   for (const sId of c.successors.get(task.id) ?? []) {
     const s = c.placed.get(sId);
     if (!s) continue;
     if (s.start < end) return false;
-    if (c.tasks.get(sId)!.chainSamePerson && s.personId !== person.id) return false;
   }
   return true;
 }
@@ -92,15 +84,6 @@ function candidateStarts(c: Ctx, task: Task, person: Person, busy: Interval[]): 
       if (b.end >= from && b.end <= to) set.add(b.end);
       if (b.start - task.duration >= from && b.start - task.duration <= to) set.add(b.start - task.duration);
     }
-    for (const id of task.linkedTo) {
-      const linked = c.placed.get(id);
-      if (!linked || linked.personId !== person.id) continue;
-      const gap = Math.max(task.linkGap ?? 0, c.tasks.get(id)?.linkGap ?? 0);
-      for (const t of [END(c, linked) + gap, linked.start - gap - task.duration])
-        if (t >= from && t <= to) set.add(t);
-    }
-    const pw = task.preferredWindow;
-    if (pw) for (const t of [pw.start, pw.end - task.duration]) if (t >= from && t <= to) set.add(t);
   }
   return [...set];
 }
@@ -119,7 +102,7 @@ function bestSlot(
     for (const start of candidateStarts(c, task, person, busy)) {
       if (!feasible(c, task, person, start, busy)) continue;
       // Les préférences dominent; l'heure de début sert de départage (au plus tôt).
-      const cost = softPenalty(task, person.id, start) + balance + start / 1440 + rng() * noise;
+      const cost = softPenalty(task, person.id) + balance + start / 1440 + rng() * noise;
       if (!best || cost < best.cost) best = { personId: person.id, start, cost };
     }
   }
@@ -148,7 +131,7 @@ function topoOrder(tasks: Task[], rng: () => number, jitter: number): { order: T
 
 function totalPenalty(c: Ctx): number {
   let p = 0;
-  for (const a of c.placed.values()) p += softPenalty(c.tasks.get(a.taskId)!, a.personId, a.start);
+  for (const a of c.placed.values()) p += softPenalty(c.tasks.get(a.taskId)!, a.personId);
   return p + imbalance(c) * BALANCE_WEIGHT;
 }
 

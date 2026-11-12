@@ -1,5 +1,5 @@
 import type { Person, ScheduledTask, Settings } from '../domain/types';
-import { migrateLegacyTasks } from '../domain/taskRelations';
+import { migrateLegacyTasks, migrateTaskOrdering } from '../domain/taskRelations';
 
 const H = 60;
 const DAY = 1440;
@@ -24,7 +24,7 @@ const t = (id: string, name: string, duration: number, extra: Partial<ScheduledT
   ...extra,
 });
 
-export const sampleTasks = migrateLegacyTasks([
+export const sampleTasks = migrateTaskOrdering(migrateLegacyTasks([
   t('t-kickoff', 'Réunion de lancement', 60, {
     window: { start: 0 * DAY + 9 * H, end: 0 * DAY + 12 * H },
     preferredPersonIds: ['p-alice'],
@@ -40,8 +40,8 @@ export const sampleTasks = migrateLegacyTasks([
     dependsOn: ['t-fix'],
     preferredPersonIds: ['p-alice'],
   }),
-  t('t-support', 'Permanence support', 90, { preferredWindow: slot(1, 14, 17) }),
+  t('t-support', 'Permanence support', 90),
   t('t-impossible', 'Atelier dimanche (impossible)', 60, { window: slot(6, 9, 11) }),
-]).tasks;
+]).tasks).tasks;
 
 export const sampleSettings: Settings = { horizonDays: 5, dayStart: 8 * H, dayEnd: 19 * H };

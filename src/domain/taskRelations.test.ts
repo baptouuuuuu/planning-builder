@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScheduledTask, Subtask } from './types';
-import { duplicateTask, migrateLegacyTasks, normalizeLinks, setTaskRelation, updateTask } from './taskRelations';
+import { duplicateTask, migrateLegacyTasks, migrateTaskOrdering, normalizeLinks } from './taskRelations';
 
 const task = (id: string, extra: Partial<Subtask> = {}): Subtask => ({
   id, name: id, duration: 60, preferredPersonIds: [], dependsOn: [], linkedTo: [], chainSamePerson: false, ...extra,
@@ -11,17 +11,28 @@ const legacyTask = (id: string, extra: Partial<ScheduledTask> = {}): ScheduledTa
 });
 
 describe('relations entre tâches', () => {
-  it('remplace le lien précédent, synchronise sa marge et ne duplique pas les liens externes', () => {
-    const a = task('a');
-    const b = task('b');
-    const c = task('c');
-    const first = setTaskRelation([a, b, c], a, b, 'linked');
-    const next = setTaskRelation(first, first[0]!, first[2]!, 'linked');
-    expect(next.map((t) => t.linkedTo)).toEqual([['c'], [], ['a']]);
-    const updated = updateTask(next, 'a', { linkGap: 7 });
-    expect(updated[2]?.linkGap).toBe(7);
-    const copy = duplicateTask({ id: 'group', name: 'Group', subtasks: [updated[0]!] }, 'copy', () => 'copy-a');
-    expect(copy.subtasks[0]?.linkedTo).toEqual([]);
+  it('migre les relations et les préférences horaires en conservant uniquement un ordre équivalent', () => {
+    const group = {
+      id: 'group', name: 'Group', preferredWindow: { start: 1, end: 100 },
+      subtasks: [task('a', { linkedTo: ['external'] }), task('b', { dependsOn: ['a'], chainSamePerson: true })],
+    };
+    const other = { id: 'other', name: 'Other', subtasks: [task('external', { dependsOn: ['b'] })] };
+    const migrated = migrateTaskOrdering([group, other]);
+    expect(migrated.tasks[0]?.ordered).toBe(true);
+    expect(migrated.tasks[1]?.ordered).toBe(false);
+    expect(migrated.tasks.flatMap((t) => t.subtasks).every((s) =>
+      s.dependsOn.length === 0 && s.linkedTo.length === 0 && !s.chainSamePerson)).toBe(true);
+    expect(migrated.tasks[0]).not.toHaveProperty('preferredWindow');
+    expect(migrated.changes).toHaveLength(2);
+    expect(migrateTaskOrdering(migrated.tasks).changes).toEqual([]);
+  });
+
+  it('duplique l’ordre et les identifiants des sous-tâches', () => {
+    let id = 0;
+    const copy = duplicateTask({ id: 'group', name: 'Group', ordered: true, subtasks: [task('a'), task('b')] },
+      'copy', () => `copy-${id++}`);
+    expect(copy.ordered).toBe(true);
+    expect(copy.subtasks.map((s) => s.id)).toEqual(['copy-0', 'copy-1']);
   });
 
   it('migre les anciens liens multiples et plages différentes sans modifier les dépendances', () => {

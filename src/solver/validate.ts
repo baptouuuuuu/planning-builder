@@ -33,20 +33,10 @@ export function validate(problem: Problem, assignments: Assignment[]): Conflict[
     for (const depId of task.dependsOn) {
       const dep = byTask.get(depId);
       const depTask = taskMap.get(depId);
-      if (dep && depTask && dep.start + depTask.duration > a.start)
+      if (!dep && depTask)
+        conflicts.push({ taskId: task.id, message: `La sous-tâche précédente « ${depTask.name} » n'est pas planifiée.` });
+      else if (dep && depTask && dep.start + depTask.duration > a.start)
         conflicts.push({ taskId: task.id, message: `Commence avant la fin de « ${depTask.name} ».` });
-      if (dep && task.chainSamePerson && dep.personId !== a.personId)
-        conflicts.push({ taskId: task.id, message: `Doit être faite par la même personne que « ${depTask?.name} ».` });
-    }
-    for (const lId of task.linkedTo ?? []) {
-      const l = byTask.get(lId);
-      const linkedTask = taskMap.get(lId);
-      if (!l || !linkedTask || task.id >= lId) continue;
-      if (l.personId !== a.personId)
-        conflicts.push({ taskId: task.id, message: `Doit être faite par la même personne que « ${linkedTask.name} » (liées).` });
-      const gap = Math.max(task.linkGap ?? 0, linkedTask.linkGap ?? 0);
-      if (l.personId === a.personId && !(end + gap <= l.start || l.start + linkedTask.duration + gap <= a.start))
-        conflicts.push({ taskId: task.id, message: `La marge de ${gap} min avec « ${linkedTask.name} » n'est pas respectée.` });
     }
   }
   for (let i = 0; i < assignments.length; i++) {
@@ -64,14 +54,6 @@ export function validate(problem: Problem, assignments: Assignment[]): Conflict[
 }
 
 /** Pénalité des contraintes souples pour une affectation. */
-export function softPenalty(task: Task, personId: string, start: number): number {
-  let p = 0;
-  if (task.preferredPersonIds.length > 0 && !task.preferredPersonIds.includes(personId)) p += 30;
-  const pw = task.preferredWindow;
-  if (pw) {
-    const end = start + task.duration;
-    const outside = Math.max(0, pw.start - start) + Math.max(0, end - pw.end);
-    if (outside > 0) p += 10 + Math.min(30, Math.ceil(outside / 15));
-  }
-  return p;
+export function softPenalty(task: Task, personId: string): number {
+  return task.preferredPersonIds.length > 0 && !task.preferredPersonIds.includes(personId) ? 30 : 0;
 }

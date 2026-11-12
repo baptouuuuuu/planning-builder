@@ -5,13 +5,13 @@ Générateur de planning d'équipe sous contraintes. 100 % front-end (React + Ty
 ## Fonctionnalités
 
 - **Équipe** : personnes + plages de disponibilité (jour + heure à la minute).
-- **Tâches et sous-tâches** : les plages imposée et préférée sont définies sur la tâche ; chaque sous-tâche possède sa durée et ses personnes préférées. Les relations (dépendances, enchaînement ou lien pour une même personne avec marge minimale) sont définies entre sous-tâches.
+- **Tâches et sous-tâches** : une plage imposée peut être définie sur la tâche ; chaque sous-tâche possède sa durée et ses personnes préférées. Les boutons monter/descendre réorganisent les sous-tâches. Une option par tâche impose leur exécution dans l'ordre affiché ; sinon elles sont indépendantes.
 - **Contraintes globales** : nombre de jours, plage d'affichage, export JSON, jeu de données d'exemple.
 - **Planning** : plannings verticaux par jour, personnes côte à côte (défilement horizontal si nécessaire), zoom vertical à la molette ou par pincement à deux doigts, **Générer**, **Régénérer** (nouvelle seed), **verrouillage** de créneaux (clic sur un bloc) puis régénération du reste uniquement, **Annuler/Rétablir** (historique de 100 états).
 - **Conflits & non planifiées** : avertissement, solution maximale, raison par tâche non planifiée, score.
 - Données persistées en `localStorage`.
 
-À la première ouverture de données anciennes, les liens multiples sont ramenés à des paires selon l'ordre des tâches. Pour chaque paire, la tâche à l'origine du premier lien retenu reprend les plages de l'autre ; les changements sont affichés, et une copie des données d'origine est conservée dans `localStorage` sous `planning-builder:v1:avant-liens` lorsque le stockage le permet. Régénérez le planning après cette migration.
+À la première ouverture de données anciennes, les relations explicites et les plages horaires préférées sont supprimées. Une chaîne de dépendances déjà conforme à l'ordre d'affichage active l'option d'ordre ; les autres relations ne sont pas conservées. Les changements sont affichés et une copie des données d'origine est conservée dans `localStorage` sous `planning-builder:v1:avant-ordre` lorsque le stockage le permet. Vérifiez l'ordre et régénérez le planning après cette migration.
 
 ## Démarrage
 
@@ -42,7 +42,7 @@ src/
 3. Amélioration locale : relocalisation aléatoire seedée si la pénalité baisse.
 4. Plusieurs redémarrages seedés ; on garde le meilleur (max de tâches planifiées, puis score).
 
-Score = 100 × tâches planifiées − pénalités (personne non préférée : 30 ; hors plage préférée : 10 à 40). Même seed ⇒ même résultat ; « Régénérer » tire une nouvelle seed. Les créneaux verrouillés sont traités comme des contraintes dures.
+Score = 100 × tâches planifiées − pénalités (personne non préférée : 30, plus équilibrage de charge). Même seed ⇒ même résultat ; « Régénérer » tire une nouvelle seed. Les créneaux verrouillés sont traités comme des contraintes dures.
 
 ## Déploiement GitHub Pages
 

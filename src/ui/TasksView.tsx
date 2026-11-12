@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import type { Subtask, Task } from '../domain/types';
-import { scheduledTasks, wouldCycle } from '../domain/types';
-import { duplicateTask, setTaskRelation, updateTask, withoutRelation, type Relation } from '../domain/taskRelations';
+import { duplicateTask } from '../domain/taskRelations';
 import { Card, IntervalField, NumberField, btnDanger, btnGhost, inputCls } from './fields';
 
 function toggle(list: string[], id: string): string[] {
@@ -23,11 +22,9 @@ function makeSubtask(id: string, name: string): Subtask {
 
 export function TasksView() {
   const { tasks, setTasks, people, settings } = useStore();
-  const [selectedTargets, setSelectedTargets] = useState<Record<string, string>>({});
   const [focusId, setFocusId] = useState<string | null>(null);
   const nameInput = useRef<HTMLInputElement>(null);
   const subtasks = tasks.flatMap((task) => task.subtasks);
-  const names = new Map(scheduledTasks(tasks).map((task) => [task.id, task.name]));
 
   useEffect(() => {
     if (!focusId || !nameInput.current) return;
@@ -48,7 +45,7 @@ export function TasksView() {
     })).filter((task) => task.subtasks.length > 0));
   };
   const updateSubtask = (id: string, patch: Partial<Subtask>) =>
-    replaceSubtasks(updateTask(subtasks, id, patch));
+    replaceSubtasks(subtasks.map((subtask) => subtask.id === id ? { ...subtask, ...patch } : subtask));
   const updateGroup = (id: string, patch: Partial<Task>) =>
     setTasks(tasks.map((task) => {
       if (task.id !== id) return task;
@@ -74,6 +71,13 @@ export function TasksView() {
     const id = crypto.randomUUID();
     updateGroup(task.id, { subtasks: [...task.subtasks, makeSubtask(id, `Sous-tâche ${task.subtasks.length + 1}`)] });
     setFocusId(id);
+  };
+  const moveSubtask = (task: Task, index: number, direction: -1 | 1) => {
+    const destination = index + direction;
+    if (destination < 0 || destination >= task.subtasks.length) return;
+    const reordered = [...task.subtasks];
+    [reordered[index], reordered[destination]] = [reordered[destination]!, reordered[index]!];
+    updateGroup(task.id, { subtasks: reordered });
   };
   const removeSubtask = (id: string) => {
     const remaining = subtasks
@@ -101,13 +105,6 @@ export function TasksView() {
       }),
     })));
   };
-  const relationOf = (task: Subtask, target: Subtask): Relation =>
-    task.linkedTo.includes(target.id) ? 'linked'
-    : task.dependsOn.includes(target.id) ? 'follows'
-    : target.dependsOn.includes(task.id) ? 'followed' : 'none';
-  const setRelation = (task: Subtask, target: Subtask, relation: Relation) =>
-    replaceSubtasks(setTaskRelation(subtasks, task, target, relation));
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -147,32 +144,20 @@ export function TasksView() {
               )}
             </fieldset>
 
-            <fieldset className="space-y-1">
-              <label className="flex items-center gap-2 text-sm font-medium">
-                <input
-                  type="checkbox"
-                  checked={!!task.preferredWindow}
-                  onChange={(e) => updateGroup(task.id, {
-                    preferredWindow: e.target.checked ? { start: 9 * 60, end: 12 * 60 } : undefined,
-                  })}
-                />
-                Plage horaire préférée (souple)
-              </label>
-              {task.preferredWindow && (
-                <IntervalField label="Plage préférée" value={task.preferredWindow} days={settings.horizonDays}
-                  onChange={(preferredWindow) => updateGroup(task.id, { preferredWindow })} />
-              )}
-            </fieldset>
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" checked={!!task.ordered}
+                onChange={(e) => updateGroup(task.id, { ordered: e.target.checked })} />
+              Respecter l'ordre affiché des sous-tâches
+            </label>
 
             <div className="space-y-3 border-t border-slate-200 pt-3">
-              {task.subtasks.map((subtask) => {
-                const targetId = selectedTargets[subtask.id] ?? subtask.linkedTo[0] ?? subtask.dependsOn[0]
-                  ?? subtasks.find((other) => other.dependsOn.includes(subtask.id))?.id ?? '';
-                const target = subtasks.find((other) => other.id === targetId && other.id !== subtask.id);
-                const base = target ? withoutRelation(subtasks, subtask, target) : subtasks;
-                return (
+              {task.subtasks.map((subtask, index) => (
                   <section key={subtask.id} className="space-y-3 rounded-lg bg-slate-50 p-3">
                     <div className="flex items-center gap-2">
+                      <button className={btnGhost} aria-label={`Monter ${subtask.name}`}
+                        disabled={index === 0} onClick={() => moveSubtask(task, index, -1)}>↑</button>
+                      <button className={btnGhost} aria-label={`Descendre ${subtask.name}`}
+                        disabled={index === task.subtasks.length - 1} onClick={() => moveSubtask(task, index, 1)}>↓</button>
                       <input
                         aria-label="Nom de la sous-tâche"
                         ref={focusId === subtask.id && focusId !== task.id ? nameInput : undefined}
@@ -204,62 +189,8 @@ export function TasksView() {
                       </div>
                     </fieldset>
 
-                    <fieldset>
-                      <legend className="mb-1 text-sm font-medium">Relation avec une sous-tâche</legend>
-                      <p className="mb-2 text-xs text-slate-500">
-                        Une seule sous-tâche liée pour la même personne ; les dépendances restent indépendantes.
-                      </p>
-                      {(subtask.linkedTo.length > 0 || subtask.dependsOn.length > 0
-                        || subtasks.some((other) => other.dependsOn.includes(subtask.id))) && (
-                        <p className="mb-2 text-xs text-slate-600">
-                          {[
-                            ...subtask.linkedTo.map((id) => `Liée : ${names.get(id) ?? id}`),
-                            ...subtask.dependsOn.map((id) => `Suit : ${names.get(id) ?? id}`),
-                            ...subtasks.filter((other) => other.dependsOn.includes(subtask.id))
-                              .map((other) => `Suivie par : ${names.get(other.id) ?? other.id}`),
-                          ].join(' · ')}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap gap-2">
-                        <select aria-label={`Sous-tâche à lier à ${subtask.name}`} className={inputCls}
-                          value={target?.id ?? ''}
-                          onChange={(e) => setSelectedTargets({ ...selectedTargets, [subtask.id]: e.target.value })}>
-                          <option value="">Choisir une sous-tâche</option>
-                          {subtasks.filter((other) => other.id !== subtask.id)
-                            .map((other) => <option key={other.id} value={other.id}>{names.get(other.id) ?? other.name}</option>)}
-                        </select>
-                        {target && (
-                          <select aria-label={`Relation avec ${names.get(target.id) ?? target.name}`} className={inputCls}
-                            value={relationOf(subtask, target)}
-                            onChange={(e) => setRelation(subtask, target, e.target.value as Relation)}>
-                            <option value="none">Aucune relation</option>
-                            <option value="linked" disabled={target.linkedTo.some((id) => id !== subtask.id)}>
-                              Liée (même personne, ordre libre)
-                            </option>
-                            <option value="follows" disabled={wouldCycle(base, subtask.id, target.id)}>Doit suivre</option>
-                            <option value="followed" disabled={wouldCycle(base, target.id, subtask.id)}>Doit être suivie par</option>
-                          </select>
-                        )}
-                      </div>
-                      {subtask.linkedTo.length > 0 && (
-                        <label className="mt-2 flex items-center gap-2 text-sm">
-                          Marge minimale entre les sous-tâches liées
-                          <NumberField label={`Marge pour ${subtask.name} en minutes`} className={`${inputCls} w-20`}
-                            min={0} value={subtask.linkGap ?? 0}
-                            onChange={(linkGap) => updateSubtask(subtask.id, { linkGap })} /> min
-                        </label>
-                      )}
-                      {subtask.dependsOn.length > 0 && (
-                        <label className="mt-2 flex items-center gap-2 text-sm">
-                          <input type="checkbox" checked={subtask.chainSamePerson}
-                            onChange={(e) => updateSubtask(subtask.id, { chainSamePerson: e.target.checked })} />
-                          Enchaîner avec la même personne
-                        </label>
-                      )}
-                    </fieldset>
                   </section>
-                );
-              })}
+              ))}
               <button className={btnGhost} onClick={() => addSubtask(task)}>+ Ajouter une sous-tâche</button>
             </div>
           </Card>
