@@ -5,9 +5,9 @@ Générateur de planning d'équipe sous contraintes. 100 % front-end (React + Ty
 ## Fonctionnalités
 
 - **Équipe** : personnes + plages de disponibilité (jour + heure à la minute).
-- **Tâches** : durée, plage horaire imposée (dure), plage préférée (souple), personnes préférées, dépendances / enchaînement (option « même personne »).
+- **Tâches** : durée, plage horaire imposée (dure), plage préférée (souple), personnes préférées, dépendances / enchaînement (option « même personne »). Deux tâches peuvent être liées à une même personne, avec une marge minimale en minutes entre leurs créneaux. La tâche liée reprend les plages imposée et préférée de la tâche choisie ; les modifications ultérieures de ces plages sont partagées. Une copie est indépendante du lien.
 - **Contraintes globales** : nombre de jours, plage d'affichage, export JSON, jeu de données d'exemple.
-- **Planning** : plannings verticaux par jour et par personne, **Générer**, **Régénérer** (nouvelle seed), **verrouillage** de créneaux (clic sur un bloc) puis régénération du reste uniquement, **Annuler/Rétablir** (historique de 100 états).
+- **Planning** : plannings verticaux par jour, personnes côte à côte (défilement horizontal si nécessaire), zoom vertical, **Générer**, **Régénérer** (nouvelle seed), **verrouillage** de créneaux (clic sur un bloc) puis régénération du reste uniquement, **Annuler/Rétablir** (historique de 100 états).
 - **Conflits & non planifiées** : avertissement, solution maximale, raison par tâche non planifiée, score.
 - Données persistées en `localStorage`.
 
@@ -61,5 +61,5 @@ Le `base` Vite vaut `/planning-builder/` par défaut ; surchargez avec `BASE_PAT
 
 - Import JSON, plusieurs plannings, disponibilités récurrentes.
 - Glisser-déposer des créneaux, vue calendrier mensuelle.
-- Solveur avancé (recherche locale/CP-SAT en Web Worker), pauses et temps de déplacement.
+- Solveur avancé (recherche locale/CP-SAT en Web Worker), pauses générales et temps de déplacement.
 - Packaging Capacitor (iOS/Android) et stockage IndexedDB.

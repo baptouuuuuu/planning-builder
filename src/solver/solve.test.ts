@@ -123,6 +123,42 @@ describe('liens et équilibrage', () => {
     expect(r.assignments).toHaveLength(2);
     expect(x!.personId).toBe(y!.personId);
   });
+  it('respecte une marge à la minute avant ou après un créneau lié verrouillé', () => {
+    const tasks = [
+      task('t1', 60, { linkedTo: ['t2'], linkGap: 7 }),
+      task('t2', 30, { linkedTo: ['t1'], linkGap: 7 }),
+    ];
+    for (const [availability, start] of [
+      [[480, 577], 547],
+      [[503, 600], 503],
+    ] as const) {
+      const p = mk([person('a', [...availability])], tasks);
+      const locked = [{ taskId: 't1', personId: 'a', start: 480 + (start === 503 ? 60 : 0), locked: true }];
+      const result = solve(p, { seed: 1, locked });
+      expect(result.assignments.find((a) => a.taskId === 't2')?.start).toBe(start);
+      expect(result.conflicts).toEqual([]);
+    }
+  });
+  it('signale une marge non respectée entre deux créneaux verrouillés', () => {
+    const p = mk([person('a', [0, 300])], [
+      task('t1', 60, { linkedTo: ['t2'], linkGap: 10 }),
+      task('t2', 30, { linkedTo: ['t1'], linkGap: 10 }),
+    ]);
+    const locked = [
+      { taskId: 't1', personId: 'a', start: 0, locked: true },
+      { taskId: 't2', personId: 'a', start: 65, locked: true },
+    ];
+    expect(solve(p, { seed: 1, locked }).conflicts.some((c) => c.message.includes('marge de 10 min'))).toBe(true);
+  });
+  it('ne place pas le second créneau si la marge ne tient pas', () => {
+    const p = mk([person('a', [0, 95])], [
+      task('t1', 60, { linkedTo: ['t2'], linkGap: 10 }),
+      task('t2', 30, { linkedTo: ['t1'], linkGap: 10 }),
+    ]);
+    const r = solve(p, { seed: 1, locked: [{ taskId: 't1', personId: 'a', start: 0, locked: true }] });
+    expect(r.assignments).toHaveLength(1);
+    expect(r.unscheduled.map((u) => u.taskId)).toContain('t2');
+  });
   it('répartit la charge', () => {
     const ppl = [person('a', [0, 600]), person('b', [0, 600])];
     const r = solve(mk(ppl, [task('1', 60), task('2', 60), task('3', 60), task('4', 60)]), { seed: 1 });

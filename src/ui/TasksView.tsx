@@ -1,9 +1,9 @@
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import type { Task } from '../domain/types';
 import { wouldCycle } from '../domain/types';
+import { duplicateTask, setTaskRelation, updateTask, withoutRelation, type Relation } from '../domain/taskRelations';
 import { Card, IntervalField, NumberField, btnDanger, btnGhost, inputCls } from './fields';
-
-type Relation = 'none' | 'linked' | 'follows' | 'followed';
 
 function toggle(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
@@ -11,8 +11,17 @@ function toggle(list: string[], id: string): string[] {
 
 export function TasksView() {
   const { tasks, setTasks, people, settings } = useStore();
-  const update = (id: string, patch: Partial<Task>) =>
-    setTasks(tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const [selectedTargets, setSelectedTargets] = useState<Record<string, string>>({});
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!focusId || !nameInput.current) return;
+    nameInput.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    nameInput.current.focus();
+    nameInput.current.select();
+    setFocusId(null);
+  }, [focusId, tasks]);
+  const update = (id: string, patch: Partial<Task>) => setTasks(updateTask(tasks, id, patch));
   const add = () =>
     setTasks([
       ...tasks,
@@ -28,36 +37,14 @@ export function TasksView() {
     ]);
   const duplicate = (t: Task) => {
     const i = tasks.findIndex((x) => x.id === t.id);
-    const copy: Task = {
-      ...t,
-      id: crypto.randomUUID(),
-      name: `${t.name} (copie)`,
-      preferredPersonIds: [...t.preferredPersonIds],
-      dependsOn: [...t.dependsOn],
-      linkedTo: [...t.linkedTo],
-    };
+    const copy = duplicateTask(t, crypto.randomUUID());
     setTasks([...tasks.slice(0, i + 1), copy, ...tasks.slice(i + 1)]);
+    setFocusId(copy.id);
   };
   const relationOf = (t: Task, o: Task): Relation =>
     t.linkedTo.includes(o.id) ? 'linked'
     : t.dependsOn.includes(o.id) ? 'follows' : o.dependsOn.includes(t.id) ? 'followed' : 'none';
-  /** Tâches sans le lien existant entre t et o, pour tester si un nouveau lien créerait une boucle. */
-  const withoutLink = (t: Task, o: Task): Task[] =>
-    tasks.map((x) =>
-      x.id === t.id ? { ...x, dependsOn: x.dependsOn.filter((d) => d !== o.id), linkedTo: x.linkedTo.filter((d) => d !== o.id) }
-      : x.id === o.id ? { ...x, dependsOn: x.dependsOn.filter((d) => d !== t.id), linkedTo: x.linkedTo.filter((d) => d !== t.id) }
-      : x,
-    );
-  const setRelation = (t: Task, o: Task, rel: Relation) =>
-    setTasks(
-      withoutLink(t, o).map((x) =>
-        rel === 'linked' && x.id === t.id ? { ...x, linkedTo: [...x.linkedTo, o.id] }
-        : rel === 'linked' && x.id === o.id ? { ...x, linkedTo: [...x.linkedTo, t.id] }
-        : rel === 'follows' && x.id === t.id ? { ...x, dependsOn: [...x.dependsOn, o.id] }
-        : rel === 'followed' && x.id === o.id ? { ...x, dependsOn: [...x.dependsOn, t.id] }
-        : x,
-      ),
-    );
+  const setRelation = (t: Task, o: Task, rel: Relation) => setTasks(setTaskRelation(tasks, t, o, rel));
   const remove = (id: string) =>
     setTasks(tasks.filter((t) => t.id !== id).map((t) => ({ ...t, dependsOn: t.dependsOn.filter((d) => d !== id), linkedTo: t.linkedTo.filter((d) => d !== id) })));
 
@@ -69,11 +56,16 @@ export function TasksView() {
       </div>
       {tasks.length === 0 && <p className="text-slate-500">Aucune tâche.</p>}
       <div className="grid gap-4 lg:grid-cols-2">
-        {tasks.map((t) => (
+        {tasks.map((t) => {
+          const targetId = selectedTargets[t.id] ?? t.linkedTo[0] ?? t.dependsOn[0] ?? tasks.find((o) => o.dependsOn.includes(t.id))?.id ?? '';
+          const target = tasks.find((o) => o.id === targetId && o.id !== t.id);
+          const base = target ? withoutRelation(tasks, t, target) : tasks;
+          return (
           <Card key={t.id} className="space-y-3">
             <div className="flex items-center gap-2">
               <input
                 aria-label="Nom de la tâche"
+                ref={focusId === t.id ? nameInput : undefined}
                 className={`${inputCls} flex-1 font-medium`}
                 value={t.name}
                 onChange={(e) => update(t.id, { name: e.target.value })}
@@ -145,36 +137,43 @@ export function TasksView() {
             </fieldset>
 
             <fieldset>
-              <legend className="mb-1 text-sm font-medium">Liens avec les autres tâches</legend>
-              <ul className="space-y-1">
-                {tasks
-                  .filter((o) => o.id !== t.id)
-                  .map((o) => {
-                    const base = withoutLink(t, o);
-                    const noFollow = wouldCycle(base, t.id, o.id);
-                    const noFollowed = wouldCycle(base, o.id, t.id);
-                    return (
-                      <li key={o.id} className="flex items-center justify-between gap-2 text-sm">
-                        <span className="truncate">{o.name}</span>
-                        <select
-                          aria-label={`Relation avec ${o.name}`}
-                          className={inputCls}
-                          value={relationOf(t, o)}
-                          onChange={(e) => setRelation(t, o, e.target.value as Relation)}
-                        >
-                          <option value="none">Aucune relation</option>
-                          <option value="linked">Liée (même personne, ordre libre)</option>
-                          <option value="follows" disabled={noFollow} title={noFollow ? 'Créerait une dépendance circulaire' : undefined}>
-                            Doit suivre
-                          </option>
-                          <option value="followed" disabled={noFollowed} title={noFollowed ? 'Créerait une dépendance circulaire' : undefined}>
-                            Doit être suivie par
-                          </option>
-                        </select>
-                      </li>
-                    );
-                  })}
-              </ul>
+              <legend className="mb-1 text-sm font-medium">Relation avec une tâche</legend>
+              <p className="mb-2 text-xs text-slate-500">
+                Une seule tâche liée pour la même personne ; les dépendances restent indépendantes.
+                Choisissez une tâche pour consulter ou modifier sa relation.
+              </p>
+              {(t.linkedTo.length > 0 || t.dependsOn.length > 0 || tasks.some((o) => o.dependsOn.includes(t.id))) && (
+                <p className="mb-2 text-xs text-slate-600">
+                  {[
+                    ...t.linkedTo.map((id) => `Liée : ${tasks.find((o) => o.id === id)?.name ?? id}`),
+                    ...t.dependsOn.map((id) => `Suit : ${tasks.find((o) => o.id === id)?.name ?? id}`),
+                    ...tasks.filter((o) => o.dependsOn.includes(t.id)).map((o) => `Suivie par : ${o.name}`),
+                  ].join(' · ')}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <select aria-label={`Tâche à lier à ${t.name}`} className={inputCls} value={target?.id ?? ''}
+                  onChange={(e) => setSelectedTargets({ ...selectedTargets, [t.id]: e.target.value })}>
+                  <option value="">Choisir une tâche</option>
+                  {tasks.filter((o) => o.id !== t.id).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+                {target && <select aria-label={`Relation avec ${target.name}`} className={inputCls}
+                  value={relationOf(t, target)} onChange={(e) => setRelation(t, target, e.target.value as Relation)}>
+                  <option value="none">Aucune relation</option>
+                  <option value="linked" disabled={target.linkedTo.some((id) => id !== t.id)}>
+                    Liée (même personne, ordre libre)
+                  </option>
+                  <option value="follows" disabled={wouldCycle(base, t.id, target.id)}>Doit suivre</option>
+                  <option value="followed" disabled={wouldCycle(base, target.id, t.id)}>Doit être suivie par</option>
+                </select>}
+              </div>
+              {t.linkedTo.length > 0 && (
+                <label className="mt-2 flex items-center gap-2 text-sm">
+                  Marge minimale entre les tâches liées
+                  <NumberField label={`Marge pour ${t.name} en minutes`} className={`${inputCls} w-20`}
+                    min={0} value={t.linkGap ?? 0} onChange={(linkGap) => update(t.id, { linkGap })} /> min
+                </label>
+              )}
               {t.dependsOn.length > 0 && (
                 <label className="mt-2 flex items-center gap-2 text-sm">
                   <input
@@ -187,7 +186,8 @@ export function TasksView() {
               )}
             </fieldset>
           </Card>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
