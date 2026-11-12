@@ -47,7 +47,7 @@ Score = 100 × tâches planifiées − pénalités (personne non préférée : 3
 ## Déploiement GitHub Pages
 
 1. Dans *Settings → Pages*, choisir **Source : GitHub Actions**.
-2. Un push sur `main` déclenche `.github/workflows/deploy.yml` (tests, build avec `BASE_PATH=/<repo>/`, déploiement).
+2. Chaque push et chaque pull request déclenche `.github/workflows/deploy.yml` (tests et build avec `BASE_PATH=/<repo>/`). Seul `main` publie sur GitHub Pages ; les autres branches et les PR ne remplacent pas le site de production.
 3. Le routage utilise `HashRouter` : aucune configuration serveur nécessaire.
 
 Le `base` Vite vaut `/planning-builder/` par défaut ; surchargez avec `BASE_PATH`.

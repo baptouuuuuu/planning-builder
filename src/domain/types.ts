@@ -17,11 +17,15 @@ export interface Person {
 export interface Task {
   id: string;
   name: string;
-  duration: number;
-  /** Contrainte dure: la tâche doit tenir entièrement dans cette plage. */
   window?: Interval;
-  /** Préférence souple de plage horaire. */
   preferredWindow?: Interval;
+  subtasks: Subtask[];
+}
+
+export interface Subtask {
+  id: string;
+  name: string;
+  duration: number;
   /** Préférence souple de personnes. */
   preferredPersonIds: string[];
   /** Tâches qui doivent être terminées avant le début de celle-ci. */
@@ -32,6 +36,21 @@ export interface Task {
   linkGap?: number;
   /** Si vrai, même personne que les tâches dont elle dépend (enchaînement). */
   chainSamePerson: boolean;
+}
+
+/** Représentation utilisée par le solveur après héritage des plages parentes. */
+export interface ScheduledTask extends Subtask {
+  window?: Interval;
+  preferredWindow?: Interval;
+}
+
+export function scheduledTasks(tasks: Task[]): ScheduledTask[] {
+  return tasks.flatMap((task) => task.subtasks.map((subtask) => ({
+    ...subtask,
+    name: task.name === subtask.name ? task.name : `${task.name} — ${subtask.name}`,
+    window: task.window,
+    preferredWindow: task.preferredWindow,
+  })));
 }
 
 export interface Assignment {
@@ -115,7 +134,7 @@ export function formatAbs(t: number, startDate?: string): string {
 }
 
 /** Vrai si faire dépendre `taskId` de `depId` créerait une boucle. */
-export function wouldCycle(tasks: Task[], taskId: string, depId: string): boolean {
+export function wouldCycle(tasks: Subtask[], taskId: string, depId: string): boolean {
   if (taskId === depId) return true;
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const seen = new Set<string>();

@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import type { Assignment, Person, Problem, Settings, SolveResult, Task } from '../domain/types';
+import type { Assignment, Person, Problem, ScheduledTask, Settings, SolveResult, Task } from '../domain/types';
 import { solve } from '../solver/solve';
 import { validate } from '../solver/validate';
 import { samplePeople, sampleSettings, sampleTasks } from '../data/sample';
-import { normalizeLinks } from '../domain/taskRelations';
+import { migrateLegacyTasks } from '../domain/taskRelations';
 
 /** État versionné par l'historique (annuler / rétablir). */
 export interface Snapshot {
@@ -71,7 +71,10 @@ function load(): Snapshot {
     if (raw) {
       const parsed = JSON.parse(raw) as Snapshot;
       if (Array.isArray(parsed.people) && Array.isArray(parsed.tasks)) {
-        const normalized = normalizeLinks(parsed.tasks);
+        const legacy = parsed.tasks.some((task) => !Array.isArray(task.subtasks));
+        const normalized = legacy
+          ? migrateLegacyTasks(parsed.tasks as unknown as ScheduledTask[])
+          : { tasks: parsed.tasks, changes: [] as string[] };
         if (normalized.changes.length) {
           try {
             if (!localStorage.getItem(`${KEY}:avant-liens`)) localStorage.setItem(`${KEY}:avant-liens`, raw);
@@ -97,7 +100,7 @@ const problemOf = (s: Snapshot): Problem => ({ people: s.people, tasks: s.tasks,
 
 /** Retire les affectations devenues orphelines après une modification des données. */
 function sanitize(s: Snapshot): Snapshot {
-  const tasks = new Set(s.tasks.map((t) => t.id));
+  const tasks = new Set(s.tasks.flatMap((t) => t.subtasks.map((subtask) => subtask.id)));
   const people = new Set(s.people.map((p) => p.id));
   const assignments = s.assignments.filter((a) => tasks.has(a.taskId) && people.has(a.personId));
   return { ...s, assignments };
@@ -153,7 +156,7 @@ export const useStore = create<State>((set, get) => {
     exportJson: () => {
       const s = get();
       return JSON.stringify(
-        { version: 1, people: s.people, tasks: s.tasks, settings: s.settings, assignments: s.assignments, seed: s.seed },
+        { version: 2, people: s.people, tasks: s.tasks, settings: s.settings, assignments: s.assignments, seed: s.seed },
         null,
         2,
       );
