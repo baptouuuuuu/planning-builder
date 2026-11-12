@@ -150,6 +150,14 @@ export function TasksView() {
               Respecter l'ordre affiché des sous-tâches
             </label>
 
+            {task.subtasks.length > 1 && (
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={!!task.compact}
+                  onChange={(e) => updateGroup(task.id, { compact: e.target.checked })} />
+                Sous-tâches proches dans le temps (préférence)
+              </label>
+            )}
+
             <div className="space-y-3 border-t border-slate-200 pt-3">
               {task.subtasks.map((subtask, index) => (
                   <section key={subtask.id} className="space-y-3 rounded-lg bg-slate-50 p-3">

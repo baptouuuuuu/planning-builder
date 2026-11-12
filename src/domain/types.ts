@@ -19,6 +19,8 @@ export interface Task {
   name: string;
   window?: Interval;
   ordered?: boolean;
+  /** Si vrai, les sous-tâches doivent être proches dans le temps (préférence souple). */
+  compact?: boolean;
   subtasks: Subtask[];
 }
 
@@ -42,6 +44,9 @@ export interface Subtask {
 export interface ScheduledTask extends Subtask {
   window?: Interval;
   preferredWindow?: Interval;
+  /** Groupe (tâche parente) et option de proximité temporelle. */
+  groupId?: string;
+  compact?: boolean;
 }
 
 export function scheduledTasks(tasks: Task[]): ScheduledTask[] {
@@ -49,6 +54,8 @@ export function scheduledTasks(tasks: Task[]): ScheduledTask[] {
     ...subtask,
     name: task.name === subtask.name ? task.name : `${task.name} — ${subtask.name}`,
     window: task.window,
+    groupId: task.id,
+    compact: !!task.compact && task.subtasks.length > 1,
     preferredWindow: undefined,
     dependsOn: task.ordered && index > 0 ? [task.subtasks[index - 1]!.id] : [],
     linkedTo: [],

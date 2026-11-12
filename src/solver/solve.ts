@@ -49,6 +49,26 @@ function feasible(c: Ctx, task: Task, person: Person, start: number, busy: Inter
   return true;
 }
 
+/** Poids (par heure d'écart) de la proximité temporelle des tâches d'un même groupe. */
+const COMPACT_WEIGHT = 3;
+
+/** Somme des écarts (en heures) entre tâches consécutives d'un groupe compact. */
+function compactGaps(c: Ctx, groupId: string, extra?: { id: string; start: number }): number {
+  const spans: Interval[] = [];
+  for (const a of c.placed.values()) {
+    const t = c.tasks.get(a.taskId)!;
+    if (t.compact && t.groupId === groupId) spans.push({ start: a.start, end: a.start + t.duration });
+  }
+  if (extra) {
+    const t = c.tasks.get(extra.id)!;
+    spans.push({ start: extra.start, end: extra.start + t.duration });
+  }
+  spans.sort((x, y) => x.start - y.start);
+  let gap = 0;
+  for (let i = 1; i < spans.length; i++) gap += Math.max(0, spans[i]!.start - spans[i - 1]!.end);
+  return gap / 60;
+}
+
 /** Poids (par heure) de l'équilibrage de la charge entre personnes. */
 const BALANCE_WEIGHT = 4;
 
@@ -102,7 +122,8 @@ function bestSlot(
     for (const start of candidateStarts(c, task, person, busy)) {
       if (!feasible(c, task, person, start, busy)) continue;
       // Les préférences dominent; l'heure de début sert de départage (au plus tôt).
-      const cost = softPenalty(task, person.id) + balance + start / 1440 + rng() * noise;
+      const near = task.compact ? compactGaps(c, task.groupId!, { id: task.id, start }) * COMPACT_WEIGHT : 0;
+      const cost = softPenalty(task, person.id) + balance + near + start / 1440 + rng() * noise;
       if (!best || cost < best.cost) best = { personId: person.id, start, cost };
     }
   }
@@ -132,6 +153,12 @@ function topoOrder(tasks: Task[], rng: () => number, jitter: number): { order: T
 function totalPenalty(c: Ctx): number {
   let p = 0;
   for (const a of c.placed.values()) p += softPenalty(c.tasks.get(a.taskId)!, a.personId);
+  const groups = new Set<string>();
+  for (const a of c.placed.values()) {
+    const t = c.tasks.get(a.taskId)!;
+    if (t.compact && t.groupId) groups.add(t.groupId);
+  }
+  for (const g of groups) p += compactGaps(c, g) * COMPACT_WEIGHT;
   return p + imbalance(c) * BALANCE_WEIGHT;
 }
 
