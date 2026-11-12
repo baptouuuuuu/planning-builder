@@ -1,7 +1,7 @@
 import type { Assignment, Interval, Person, Problem, SolveResult, ScheduledTask as Task, Unscheduled } from '../domain/types';
 import { formatAbs, scheduledTasks } from '../domain/types';
 import { createRng } from './rng';
-import { fitsAvailability, fitsWindow, softPenalty, validate } from './validate';
+import { fitsAvailability, fitsWindow, isPossiblePerson, softPenalty, validate } from './validate';
 
 export interface SolveOptions {
   seed: number;
@@ -34,7 +34,7 @@ function busyOf(c: Ctx, personId: string, ignoreTask?: string): Interval[] {
 /** Vérifie les contraintes dures pour placer `task` chez `person` à `start`. */
 function feasible(c: Ctx, task: Task, person: Person, start: number, busy: Interval[]): boolean {
   const end = start + task.duration;
-  if (!fitsAvailability(person, start, end) || !fitsWindow(task, start, end)) return false;
+  if (!isPossiblePerson(task, person.id) || !fitsAvailability(person, start, end) || !fitsWindow(task, start, end)) return false;
   if (busy.some((b) => b.start < end && start < b.end)) return false;
   for (const depId of task.dependsOn) {
     const d = c.placed.get(depId);
@@ -227,14 +227,17 @@ function diagnose(problem: SolverProblem, task: Task): Unscheduled {
   const base = { taskId: task.id };
   if (problem.people.length === 0)
     return { ...base, code: 'no-person', reason: "Aucune personne dans l'équipe." };
+  const possible = problem.people.filter((person) => isPossiblePerson(task, person.id));
+  if (possible.length === 0)
+    return { ...base, code: 'no-person', reason: "Aucune personne possible pour cette tâche." };
   const maxAvail = Math.max(
     0,
-    ...problem.people.flatMap((p) => p.availability.map((a) => a.end - a.start)),
+    ...possible.flatMap((p) => p.availability.map((a) => a.end - a.start)),
   );
   if (task.duration > maxAvail)
     return { ...base, code: 'too-long', reason: `Durée (${task.duration} min) supérieure à toute disponibilité.` };
   if (task.window) {
-    const usable = problem.people.some((p) =>
+    const usable = possible.some((p) =>
       p.availability.some(
         (a) => Math.max(a.start, task.window!.start) + task.duration <= Math.min(a.end, task.window!.end),
       ),

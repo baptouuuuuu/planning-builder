@@ -183,6 +183,30 @@ export function TasksView() {
                     </div>
 
                     <fieldset>
+                      <legend className="mb-1 text-sm font-medium">Personnes possibles (contrainte dure)</legend>
+                      <label className="mb-2 flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={subtask.possiblePersonIds !== undefined}
+                          onChange={(e) => updateSubtask(subtask.id, {
+                            possiblePersonIds: e.target.checked ? people.map((person) => person.id) : undefined,
+                          })} />
+                        Limiter les personnes autorisées
+                      </label>
+                      {subtask.possiblePersonIds !== undefined && (
+                        <div className="flex flex-wrap gap-2">
+                          {people.map((person) => (
+                            <label key={person.id} className="flex items-center gap-1 rounded-full border border-slate-200 px-2 py-1 text-sm">
+                              <input type="checkbox" checked={subtask.possiblePersonIds!.includes(person.id)}
+                                onChange={() => updateSubtask(subtask.id, {
+                                  possiblePersonIds: toggle(subtask.possiblePersonIds!, person.id),
+                                })} />
+                              <span style={{ color: person.color }}>●</span> {person.name}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </fieldset>
+
+                    <fieldset>
                       <legend className="mb-1 text-sm font-medium">Personnes préférées</legend>
                       <div className="flex flex-wrap gap-2">
                         {people.map((person) => (

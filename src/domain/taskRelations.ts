@@ -50,6 +50,7 @@ export function duplicateTask(t: Task, id: string, newId: () => string): Task {
     name: `${t.name} (copie)`,
     subtasks: t.subtasks.map((s) => ({
       ...s, id: ids.get(s.id)!, preferredPersonIds: [...s.preferredPersonIds],
+      possiblePersonIds: s.possiblePersonIds && [...s.possiblePersonIds],
       dependsOn: s.dependsOn.flatMap((dep) => ids.has(dep) ? [ids.get(dep)!] : []),
       linkedTo: s.linkedTo.flatMap((link) => ids.has(link) ? [ids.get(link)!] : []),
     })),

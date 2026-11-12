@@ -29,8 +29,8 @@ export function PlanningView() {
         </button>
       </div>
       <p className="text-sm text-slate-500">
-        Sélectionnez ou glissez une tâche pour la déplacer dans une zone compatible. Verrouillez-la pour la conserver lors
-        de la régénération. {locked} verrouillé(s). Zoomez à la molette ou avec deux doigts.
+        Cliquez sur une tâche pour la sélectionner, puis glissez-la dans une zone compatible. Cliquez dans le vide pour
+        désélectionner. Verrouillez-la pour la conserver lors de la régénération. {locked} verrouillé(s). Zoomez à la molette ou avec deux doigts.
       </p>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Timeline />

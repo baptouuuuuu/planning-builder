@@ -6,6 +6,23 @@ const initialState = useStore.getState();
 afterEach(() => useStore.setState(initialState, true));
 
 describe('déplacement manuel', () => {
+  it('refuse une personne exclue de la sous-tâche', () => {
+    const people: Person[] = ['a', 'b'].map((id) => ({
+      id, name: id, color: '#000000', availability: [{ start: 540, end: 720 }],
+    }));
+    const task: Task = { id: 't', name: 'T', subtasks: [{
+      id: 's', name: 'S', duration: 60, preferredPersonIds: [], possiblePersonIds: ['a'],
+      dependsOn: [], linkedTo: [], chainSamePerson: false,
+    }] };
+    useStore.setState({
+      people, tasks: [task], settings: { horizonDays: 1, dayStart: 480, dayEnd: 1080 },
+      assignments: [{ taskId: 's', personId: 'a', start: 540, locked: false }], result: null, past: [], future: [],
+    });
+    expect(useStore.getState().moveAssignment('s', 'b', 600)).toBe(false);
+    expect(useStore.getState().assignments[0]?.personId).toBe('a');
+    expect(useStore.getState().moveAssignment('s', 'a', 600)).toBe(true);
+  });
+
   it('rejette un créneau invalide et conserve le verrouillage et l’historique pour un créneau valide', () => {
     const person: Person = { id: 'p', name: 'P', color: '#000000', availability: [{ start: 540, end: 720 }] };
     const task: Task = { id: 't', name: 'T', subtasks: [{

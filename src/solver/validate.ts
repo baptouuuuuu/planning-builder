@@ -11,6 +11,10 @@ export function fitsWindow(task: Task, start: number, end: number): boolean {
   return !task.window || (task.window.start <= start && end <= task.window.end);
 }
 
+export function isPossiblePerson(task: Task, personId: string): boolean {
+  return task.possiblePersonIds === undefined || task.possiblePersonIds.includes(personId);
+}
+
 /** Vérifie toutes les contraintes dures d'un jeu d'affectations. */
 export function validate(problem: Problem, assignments: Assignment[]): Conflict[] {
   const conflicts: Conflict[] = [];
@@ -26,6 +30,8 @@ export function validate(problem: Problem, assignments: Assignment[]): Conflict[
       continue;
     }
     const end = a.start + task.duration;
+    if (!isPossiblePerson(task, person.id))
+      conflicts.push({ taskId: task.id, message: `${person.name} ne peut pas effectuer cette tâche.` });
     if (!fitsAvailability(person, a.start, end))
       conflicts.push({ taskId: task.id, message: `${person.name} n'est pas disponible à ${formatAbs(a.start, problem.settings.startDate)}.` });
     if (!fitsWindow(task, a.start, end))
