@@ -18,7 +18,7 @@ export interface Task {
   id: string;
   name: string;
   window?: Interval;
-  preferredWindow?: Interval;
+  ordered?: boolean;
   subtasks: Subtask[];
 }
 
@@ -45,11 +45,15 @@ export interface ScheduledTask extends Subtask {
 }
 
 export function scheduledTasks(tasks: Task[]): ScheduledTask[] {
-  return tasks.flatMap((task) => task.subtasks.map((subtask) => ({
+  return tasks.flatMap((task) => task.subtasks.map((subtask, index) => ({
     ...subtask,
     name: task.name === subtask.name ? task.name : `${task.name} — ${subtask.name}`,
     window: task.window,
-    preferredWindow: task.preferredWindow,
+    preferredWindow: undefined,
+    dependsOn: task.ordered && index > 0 ? [task.subtasks[index - 1]!.id] : [],
+    linkedTo: [],
+    linkGap: undefined,
+    chainSamePerson: false,
   })));
 }
 

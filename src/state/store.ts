@@ -3,7 +3,7 @@ import type { Assignment, Person, Problem, ScheduledTask, Settings, SolveResult,
 import { solve } from '../solver/solve';
 import { validate } from '../solver/validate';
 import { samplePeople, sampleSettings, sampleTasks } from '../data/sample';
-import { migrateLegacyTasks } from '../domain/taskRelations';
+import { migrateLegacyTasks, migrateTaskOrdering } from '../domain/taskRelations';
 
 /** État versionné par l'historique (annuler / rétablir). */
 export interface Snapshot {
@@ -72,12 +72,14 @@ function load(): Snapshot {
       const parsed = JSON.parse(raw) as Snapshot;
       if (Array.isArray(parsed.people) && Array.isArray(parsed.tasks)) {
         const legacy = parsed.tasks.some((task) => !Array.isArray(task.subtasks));
-        const normalized = legacy
+        const grouped = legacy
           ? migrateLegacyTasks(parsed.tasks as unknown as ScheduledTask[])
           : { tasks: parsed.tasks, changes: [] as string[] };
+        const ordering = migrateTaskOrdering(grouped.tasks);
+        const normalized = { tasks: ordering.tasks, changes: [...grouped.changes, ...ordering.changes] };
         if (normalized.changes.length) {
           try {
-            if (!localStorage.getItem(`${KEY}:avant-liens`)) localStorage.setItem(`${KEY}:avant-liens`, raw);
+            if (!localStorage.getItem(`${KEY}:avant-ordre`)) localStorage.setItem(`${KEY}:avant-ordre`, raw);
           } catch (error) {
             console.error('Impossible de sauvegarder les données avant migration des liens.', error);
           }
