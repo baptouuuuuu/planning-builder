@@ -2,6 +2,48 @@ import type { Task } from './types';
 
 export type Relation = 'none' | 'linked' | 'follows' | 'followed';
 
+/** Les anciens liens multiples sont conservés par paires selon l'ordre des tâches. */
+export function normalizeLinks(tasks: Task[]): { tasks: Task[]; changes: string[] } {
+  const result = tasks.map((t) => ({ ...t, linkedTo: [] as string[] }));
+  const byId = new Map(result.map((t) => [t.id, t]));
+  const used = new Set<string>();
+  const seen = new Set<string>();
+  const changes: string[] = [];
+  const sameWindow = (a: Task['window'], b: Task['window']) =>
+    a?.start === b?.start && a?.end === b?.end;
+
+  for (const original of tasks) {
+    for (const id of original.linkedTo ?? []) {
+      const key = [original.id, id].sort().join('\0');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const a = byId.get(original.id)!;
+      const b = byId.get(id);
+      if (!b || a.id === b.id || used.has(a.id) || used.has(b.id)) {
+        changes.push(`Lien supprimé : ${a.name} / ${b?.name ?? id}.`);
+        continue;
+      }
+      used.add(a.id);
+      used.add(b.id);
+      a.linkedTo = [b.id];
+      b.linkedTo = [a.id];
+      const other = tasks.find((t) => t.id === id)!;
+      if (!(other.linkedTo ?? []).includes(a.id))
+        changes.push(`Lien réciproque rétabli : ${a.name} / ${b.name}.`);
+      if (!sameWindow(a.window, b.window) || !sameWindow(a.preferredWindow, b.preferredWindow))
+        changes.push(`Plages de ${a.name} alignées sur celles de ${b.name}.`);
+      a.window = b.window;
+      a.preferredWindow = b.preferredWindow;
+      const gap = Math.max(a.linkGap ?? 0, b.linkGap ?? 0);
+      if ((a.linkGap ?? 0) !== (b.linkGap ?? 0))
+        changes.push(`Marge harmonisée pour ${a.name} / ${b.name} : ${gap} min.`);
+      a.linkGap = gap;
+      b.linkGap = gap;
+    }
+  }
+  return { tasks: result, changes };
+}
+
 export function updateTask(tasks: Task[], id: string, patch: Partial<Task>): Task[] {
   const task = tasks.find((t) => t.id === id);
   const shared: Partial<Task> = {};

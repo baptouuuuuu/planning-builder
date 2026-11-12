@@ -14,7 +14,7 @@ const links = [
 ] as const;
 
 export function App() {
-  const { undo, redo, past, future } = useStore();
+  const { undo, redo, past, future, migrationNotice, dismissMigrationNotice } = useStore();
   return (
     <div className="mx-auto flex h-dvh max-w-7xl flex-col overflow-hidden">
       <header className="z-10 flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white/90 px-4 py-2 backdrop-blur">
@@ -38,6 +38,13 @@ export function App() {
         </div>
       </header>
       <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-4">
+        {!!migrationNotice?.length && (
+          <div role="alert" className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <p>Les anciens liens ont été adaptés à une seule tâche liée. Vérifiez-les puis régénérez le planning.</p>
+            <ul className="mt-1 list-inside list-disc">{migrationNotice.map((message, i) => <li key={i}>{message}</li>)}</ul>
+            <button className={`${btnGhost} mt-2`} onClick={dismissMigrationNotice}>Compris</button>
+          </div>
+        )}
         <Routes>
           <Route path="/" element={<Navigate to="/planning" replace />} />
           <Route path="/planning" element={<PlanningView />} />

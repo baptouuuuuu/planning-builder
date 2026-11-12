@@ -11,6 +11,8 @@ Générateur de planning d'équipe sous contraintes. 100 % front-end (React + Ty
 - **Conflits & non planifiées** : avertissement, solution maximale, raison par tâche non planifiée, score.
 - Données persistées en `localStorage`.
 
+À la première ouverture de données anciennes, les liens multiples sont ramenés à des paires selon l'ordre des tâches. Pour chaque paire, la tâche à l'origine du premier lien retenu reprend les plages de l'autre ; les changements sont affichés, et une copie des données d'origine est conservée dans `localStorage` sous `planning-builder:v1:avant-liens` lorsque le stockage le permet. Régénérez le planning après cette migration.
+
 ## Démarrage
 
 ```bash
