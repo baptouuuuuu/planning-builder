@@ -111,7 +111,9 @@ describe('solver', () => {
     const p = mk([person('a', [0, 120]), person('b', [0, 120])], [
       task('t', 60, { possiblePersonIds: ['a'], preferredPersonIds: ['b'] }),
     ]);
-    expect(solve(p, { seed: 1 }).assignments[0]?.personId).toBe('a');
+    const result = solve(p, { seed: 1 });
+    expect(result.assignments[0]?.personId).toBe('a');
+    expect(result.penalty).toBe(solve(mk(p.people, [task('t', 60, { possiblePersonIds: ['a'] })]), { seed: 1 }).penalty);
     const locked = [{ taskId: 't', personId: 'b', start: 0, locked: true }];
     expect(solve(p, { seed: 1, locked }).conflicts[0]?.message).toContain('ne peut pas');
     const none = mk(p.people, [task('t', 60, { possiblePersonIds: [] })]);

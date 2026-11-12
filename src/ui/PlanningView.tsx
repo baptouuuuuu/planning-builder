@@ -30,7 +30,7 @@ export function PlanningView() {
       </div>
       <p className="text-sm text-slate-500">
         Cliquez sur une tâche pour la sélectionner, puis glissez-la dans une zone compatible. Cliquez dans le vide pour
-        désélectionner. Verrouillez-la pour la conserver lors de la régénération. {locked} verrouillé(s). Zoomez à la molette ou avec deux doigts.
+        désélectionner. Double-cliquez sur une tâche pour la verrouiller ou la déverrouiller. Les tâches verrouillées sont conservées lors de la régénération. {locked} verrouillé(s). Zoomez à la molette ou avec deux doigts.
       </p>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Timeline />
