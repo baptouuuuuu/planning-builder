@@ -61,5 +61,6 @@ export function validate(problem: Problem, assignments: Assignment[]): Conflict[
 
 /** Pénalité des contraintes souples pour une affectation. */
 export function softPenalty(task: Task, personId: string): number {
-  return task.preferredPersonIds.length > 0 && !task.preferredPersonIds.includes(personId) ? 30 : 0;
+  const preferred = task.preferredPersonIds.filter((id) => isPossiblePerson(task, id));
+  return preferred.length > 0 && !preferred.includes(personId) ? 30 : 0;
 }
