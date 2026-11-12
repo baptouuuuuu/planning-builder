@@ -28,6 +28,8 @@ export interface Task {
   dependsOn: string[];
   /** Tâches liées (relation symétrique, sans ordre): faites par la même personne. */
   linkedTo: string[];
+  /** Intervalle minimal en minutes entre deux tâches liées. */
+  linkGap?: number;
   /** Si vrai, même personne que les tâches dont elle dépend (enchaînement). */
   chainSamePerson: boolean;
 }

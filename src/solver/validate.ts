@@ -40,8 +40,13 @@ export function validate(problem: Problem, assignments: Assignment[]): Conflict[
     }
     for (const lId of task.linkedTo ?? []) {
       const l = byTask.get(lId);
-      if (l && l.personId !== a.personId && task.id < lId)
-        conflicts.push({ taskId: task.id, message: `Doit être faite par la même personne que « ${taskMap.get(lId)?.name} » (liées).` });
+      const linkedTask = taskMap.get(lId);
+      if (!l || !linkedTask || task.id >= lId) continue;
+      if (l.personId !== a.personId)
+        conflicts.push({ taskId: task.id, message: `Doit être faite par la même personne que « ${linkedTask.name} » (liées).` });
+      const gap = Math.max(task.linkGap ?? 0, linkedTask.linkGap ?? 0);
+      if (l.personId === a.personId && !(end + gap <= l.start || l.start + linkedTask.duration + gap <= a.start))
+        conflicts.push({ taskId: task.id, message: `La marge de ${gap} min avec « ${linkedTask.name} » n'est pas respectée.` });
     }
   }
   for (let i = 0; i < assignments.length; i++) {

@@ -15,7 +15,7 @@ const initialState = useStore.getState();
 afterEach(() => useStore.setState(initialState, true));
 
 describe('Timeline', () => {
-  it('affiche verticalement la suite des tâches et les disponibilités sans commandes de zoom', () => {
+  it('affiche les personnes côte à côte, le zoom et la suite des tâches', () => {
     const task: Task = {
       id: 'task',
       name: 'Intervention',
@@ -26,7 +26,10 @@ describe('Timeline', () => {
       chainSamePerson: false,
     };
     useStore.setState({
-      people: [{ id: 'person', name: 'Alice', color: '#123456', availability: [{ start: DAY, end: DAY + 90 }] }],
+      people: [
+        { id: 'person', name: 'Alice', color: '#123456', availability: [{ start: DAY, end: DAY + 90 }] },
+        { id: 'person2', name: 'Bob', color: '#654321', availability: [] },
+      ],
       tasks: [task],
       assignments: [{ taskId: task.id, personId: 'person', start: DAY - 30, locked: false }],
       settings: { horizonDays: 2, dayStart: 0, dayEnd: 120 },
@@ -37,8 +40,10 @@ describe('Timeline', () => {
     expect(html).toContain('(suite) → 01:00');
     expect(html).toContain('top:0%;height:calc(50% - 0%)');
     expect(html).toContain('top:0%;height:calc(75% - 0%)');
-    expect(html).not.toContain('Niveau de zoom');
-    expect(html).not.toContain('overflow-auto');
+    expect(html).toContain('Niveau de zoom');
+    expect(html).toContain('overflow-x-auto');
+    expect(html).toContain('Alice');
+    expect(html).toContain('Bob');
 
     useStore.getState().toggleLock(task.id);
     expect(renderToStaticMarkup(createElement(Timeline))).toContain('aria-pressed="true"');

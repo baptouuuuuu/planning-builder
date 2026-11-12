@@ -42,7 +42,9 @@ function feasible(c: Ctx, task: Task, person: Person, start: number, busy: Inter
   }
   for (const lId of task.linkedTo) {
     const l = c.placed.get(lId);
-    if (l && l.personId !== person.id) return false;
+    if (!l) continue;
+    const gap = Math.max(task.linkGap ?? 0, c.tasks.get(lId)?.linkGap ?? 0);
+    if (l.personId !== person.id || !(end + gap <= l.start || END(c, l) + gap <= start)) return false;
   }
   for (const sId of c.successors.get(task.id) ?? []) {
     const s = c.placed.get(sId);
@@ -87,6 +89,13 @@ function candidateStarts(c: Ctx, task: Task, person: Person, busy: Interval[]): 
     for (const b of busy) {
       if (b.end >= from && b.end <= to) set.add(b.end);
       if (b.start - task.duration >= from && b.start - task.duration <= to) set.add(b.start - task.duration);
+    }
+    for (const id of task.linkedTo) {
+      const linked = c.placed.get(id);
+      if (!linked || linked.personId !== person.id) continue;
+      const gap = Math.max(task.linkGap ?? 0, c.tasks.get(id)?.linkGap ?? 0);
+      for (const t of [END(c, linked) + gap, linked.start - gap - task.duration])
+        if (t >= from && t <= to) set.add(t);
     }
     const pw = task.preferredWindow;
     if (pw) for (const t of [pw.start, pw.end - task.duration]) if (t >= from && t <= to) set.add(t);

@@ -2,10 +2,12 @@ import { useStore } from '../state/store';
 import { Card } from './fields';
 
 export function IssuesPanel() {
-  const { result, tasks } = useStore();
+  const { result, tasks, assignments } = useStore();
   const name = (id: string) => tasks.find((t) => t.id === id)?.name ?? id;
 
-  if (!result) return <Card><p className="text-sm text-slate-500">Aucun planning généré pour l'instant.</p></Card>;
+  if (!result) return <Card><p className="text-sm text-slate-500">
+    {assignments.length ? 'Le planning a été modifié. Régénérez-le pour vérifier les contraintes.' : "Aucun planning généré pour l'instant."}
+  </p></Card>;
 
   const { unscheduled, conflicts, score, maxScore, penalty, seed } = result;
   const pct = maxScore ? Math.round((score / maxScore) * 100) : 100;

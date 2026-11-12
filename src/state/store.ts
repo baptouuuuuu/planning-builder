@@ -3,6 +3,7 @@ import type { Assignment, Person, Problem, Settings, SolveResult, Task } from '.
 import { solve } from '../solver/solve';
 import { validate } from '../solver/validate';
 import { samplePeople, sampleSettings, sampleTasks } from '../data/sample';
+import { normalizeLinks } from '../domain/taskRelations';
 
 /** État versionné par l'historique (annuler / rétablir). */
 export interface Snapshot {
@@ -12,6 +13,7 @@ export interface Snapshot {
   assignments: Assignment[];
   result: SolveResult | null;
   seed: number;
+  migrationNotice?: string[];
 }
 
 interface State extends Snapshot {
@@ -29,6 +31,7 @@ interface State extends Snapshot {
   loadSample: () => void;
   reset: () => void;
   exportJson: () => string;
+  dismissMigrationNotice: () => void;
 }
 
 const KEY = 'planning-builder:v1';
@@ -59,6 +62,7 @@ const pick = (s: Snapshot): Snapshot => ({
   assignments: s.assignments,
   result: s.result,
   seed: s.seed,
+  migrationNotice: s.migrationNotice,
 });
 
 function load(): Snapshot {
@@ -66,8 +70,22 @@ function load(): Snapshot {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Snapshot;
-      if (Array.isArray(parsed.people) && Array.isArray(parsed.tasks))
-        return { ...parsed, tasks: parsed.tasks.map((t) => ({ ...t, linkedTo: t.linkedTo ?? [] })) };
+      if (Array.isArray(parsed.people) && Array.isArray(parsed.tasks)) {
+        const normalized = normalizeLinks(parsed.tasks);
+        if (normalized.changes.length) {
+          try {
+            if (!localStorage.getItem(`${KEY}:avant-liens`)) localStorage.setItem(`${KEY}:avant-liens`, raw);
+          } catch (error) {
+            console.error('Impossible de sauvegarder les données avant migration des liens.', error);
+          }
+        }
+        return {
+          ...parsed,
+          tasks: normalized.tasks,
+          result: normalized.changes.length ? null : parsed.result,
+          migrationNotice: [...(parsed.migrationNotice ?? []), ...normalized.changes],
+        };
+      }
     }
   } catch {
     /* données corrompues: on repart de l'exemple */
@@ -102,7 +120,7 @@ export const useStore = create<State>((set, get) => {
     past: [],
     future: [],
     setPeople: (people) => commit(sanitize({ ...pick(get()), people })),
-    setTasks: (tasks) => commit(sanitize({ ...pick(get()), tasks })),
+    setTasks: (tasks) => commit(sanitize({ ...pick(get()), tasks, result: null })),
     setSettings: (settings) => commit({ ...pick(get()), settings }),
     generate: () => commit(run(pick(get()), get().seed)),
     regenerate: () => commit(run(pick(get()), Math.floor(Math.random() * 2 ** 31))),
@@ -131,6 +149,7 @@ export const useStore = create<State>((set, get) => {
     },
     loadSample: () => commit(sampleSnapshot()),
     reset: () => commit(emptySnapshot()),
+    dismissMigrationNotice: () => set({ migrationNotice: undefined }),
     exportJson: () => {
       const s = get();
       return JSON.stringify(

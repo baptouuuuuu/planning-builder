@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { DAY, dayLabel, formatAbs, formatTime } from '../domain/types';
 import { useStore } from '../state/store';
 
 export function Timeline() {
   const { people, tasks, assignments, settings, toggleLock } = useStore();
+  const [zoom, setZoom] = useState(1);
   const taskMap = new Map(tasks.map((t) => [t.id, t]));
   const { dayStart, dayEnd, startDate } = settings;
   const span = Math.max(60, dayEnd - dayStart);
@@ -14,6 +16,12 @@ export function Timeline() {
 
   return (
     <div className="min-w-0 space-y-6">
+      <label className="flex items-center gap-2 text-sm">
+        Zoom vertical
+        <input aria-label="Niveau de zoom" type="range" min="0.5" max="2.5" step="0.25"
+          value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
+        <span>{Math.round(zoom * 100)} %</span>
+      </label>
       {Array.from({ length: settings.horizonDays }, (_, d) => {
         const base = d * DAY;
         const end = (a: { taskId: string; start: number }) => a.start + (taskMap.get(a.taskId)?.duration ?? 0);
@@ -25,15 +33,15 @@ export function Timeline() {
             <h3 className="mb-2 text-sm font-semibold text-slate-600">
               {dayLabel(d, startDate)} · {startsToday} tâche(s)
             </h3>
-            <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+            <div className="flex gap-3 overflow-x-auto pb-2">
               {people.map((p) => (
-                <div key={p.id} className="min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div key={p.id} className="w-56 shrink-0 rounded-xl border border-slate-200 bg-white shadow-sm">
                   <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2 text-sm font-medium">
                     <span style={{ color: p.color }}>●</span>
                     <span className="truncate">{p.name}</span>
                   </div>
                   <div className="py-3 pr-2">
-                    <div className="relative ml-14" style={{ height: span * 64 / 60 }}>
+                    <div className="relative ml-14" style={{ height: span * 64 / 60 * zoom }}>
                       {p.availability
                         .filter((a) => a.end > base + dayStart && a.start < base + dayEnd)
                         .map((a, i) => (
