@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { DAY, dayLabel, formatAbs, formatTime, scheduledTasks } from '../domain/types';
+import { validStarts } from '../solver/placement';
 import { useStore } from '../state/store';
+import { btnGhost, btnPrimary, MinuteField } from './fields';
 
 export function Timeline() {
-  const { people, tasks, assignments, settings, toggleLock } = useStore();
+  const { people, tasks, assignments, settings, toggleLock, moveAssignment } = useStore();
   const [zoom, setZoom] = useState(1);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [candidate, setCandidate] = useState<{ personId: string; start: number } | null>(null);
+  const [message, setMessage] = useState('');
+  const drag = useRef<{ taskId: string; x: number; y: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
   const timelineRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const element = timelineRef.current;
@@ -48,6 +56,35 @@ export function Timeline() {
     };
   }, [people.length > 0]);
   const taskMap = new Map(scheduledTasks(tasks).map((t) => [t.id, t]));
+  const selected = assignments.find((a) => a.taskId === selectedId);
+  const selectedTask = selected && taskMap.get(selected.taskId);
+  const problem = { people, tasks, settings };
+  const candidateValid = !!selected && !!candidate && validStarts(problem, assignments, selected.taskId, candidate.personId)
+    .some((r) => r.start <= candidate.start && candidate.start <= r.end);
+  const select = (taskId: string) => {
+    const assignment = assignments.find((a) => a.taskId === taskId);
+    if (!assignment) return;
+    setSelectedId(taskId);
+    setCandidate({ personId: assignment.personId, start: assignment.start });
+    setMessage('');
+  };
+  const dropAt = (x: number, y: number) => {
+    const column = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-timeline-column]');
+    if (!column) return null;
+    const rect = column.getBoundingClientRect();
+    const day = Number(column.dataset.day);
+    const personId = column.dataset.personId;
+    if (!personId || y < rect.top || y > rect.bottom) return null;
+    return { personId, start: Math.round(day * DAY + settings.dayStart + (y - rect.top) / rect.height * span) };
+  };
+  const applyMove = (taskId: string, target: { personId: string; start: number } | null) => {
+    if (target && moveAssignment(taskId, target.personId, target.start)) {
+      setCandidate(target);
+      setMessage('Créneau déplacé.');
+    } else {
+      setMessage('Déplacement impossible : choisissez une zone verte compatible avec les contraintes.');
+    }
+  };
   const { dayStart, dayEnd, startDate } = settings;
   const span = Math.max(60, dayEnd - dayStart);
   const pct = (m: number) => `${Math.min(100, Math.max(0, ((m - dayStart) / span) * 100))}%`;
@@ -58,6 +95,37 @@ export function Timeline() {
 
   return (
     <div ref={timelineRef} className="min-w-0 space-y-6" style={{ touchAction: 'pan-x pan-y' }}>
+      {showDetails && selected && selectedTask && candidate && (
+        <div className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="mr-auto">
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Tâche sélectionnée</p>
+              <p className="font-semibold text-slate-900">{selectedTask.name}</p>
+            </div>
+            <button className={btnGhost} onClick={() => toggleLock(selected.taskId)}>
+              {selected.locked ? '🔒 Déverrouiller' : '🔓 Verrouiller'}
+            </button>
+            <button className={btnGhost} onClick={() => { setSelectedId(null); setShowDetails(false); setMessage(''); }}>Fermer</button>
+          </div>
+          <p className="text-sm text-slate-600">Déposez le pointeur dans une zone verte pour choisir le début. Vous pouvez aussi saisir un créneau précis.</p>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="space-y-1 text-sm">
+              <span className="block font-medium">Personne</span>
+              <select aria-label="Personne pour le déplacement" className="rounded-md border border-slate-300 bg-white px-2 py-1.5" value={candidate.personId}
+                onChange={(e) => { setCandidate({ ...candidate, personId: e.target.value }); setMessage(''); }}>
+                {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </label>
+            <div className="space-y-1 text-sm">
+              <span className="block font-medium">Début</span>
+              <MinuteField label="Début du déplacement" value={candidate.start} days={settings.horizonDays}
+                onChange={(start) => { setCandidate({ ...candidate, start }); setMessage(''); }} />
+            </div>
+            <button className={btnPrimary} disabled={!candidateValid} onClick={() => applyMove(selected.taskId, candidate)}>Déplacer</button>
+          </div>
+          <p role="status" className="text-sm text-indigo-800">{message || (candidateValid ? 'Créneau compatible avec les contraintes.' : 'Créneau incompatible avec les contraintes.')}</p>
+        </div>
+      )}
       {Array.from({ length: settings.horizonDays }, (_, d) => {
         const base = d * DAY;
         const end = (a: { taskId: string; start: number }) => a.start + (taskMap.get(a.taskId)?.duration ?? 0);
@@ -77,8 +145,8 @@ export function Timeline() {
                     <span className="truncate">{p.name}</span>
                   </div>
                   <div className="py-3 pr-2">
-                    <div className="relative ml-14" style={{ height: span * 64 / 60 * zoom }}>
-                      {p.availability
+                    <div className="relative ml-14" data-timeline-column data-day={d} data-person-id={p.id} style={{ height: span * 64 / 60 * zoom }}>
+                      {!selected && p.availability
                         .filter((a) => a.end > base + dayStart && a.start < base + dayEnd)
                         .map((a, i) => (
                           <div
@@ -97,6 +165,20 @@ export function Timeline() {
                           </span>
                         </div>
                       ))}
+                      {selected && validStarts(problem, assignments, selected.taskId, p.id)
+                        .filter((r) => r.end >= base + dayStart && r.start < base + dayEnd)
+                        .map((r, i) => (
+                          <div key={i} aria-hidden="true" className="pointer-events-none absolute inset-x-0 z-10 rounded border border-emerald-500 bg-emerald-400/40"
+                            style={{ top: pct(r.start - base), height: `max(3px, calc(${pct(r.end + 1 - base)} - ${pct(r.start - base)}))` }} />
+                        ))}
+                      {selected && candidate && candidate.personId === p.id && candidate.start >= base + dayStart && candidate.start < base + dayEnd && (
+                        <div aria-hidden="true" className={`pointer-events-none absolute inset-x-0 z-30 border-t-2 ${candidateValid ? 'border-emerald-700' : 'border-red-600'}`}
+                          style={{ top: pct(candidate.start - base) }}>
+                          <span className={`absolute right-0 -translate-y-full rounded px-1 text-xs font-semibold text-white ${candidateValid ? 'bg-emerald-700' : 'bg-red-600'}`}>
+                            {formatTime(candidate.start - base)}
+                          </span>
+                        </div>
+                      )}
                       {placed
                         .filter((a) => a.personId === p.id)
                         .map((a) => {
@@ -106,15 +188,47 @@ export function Timeline() {
                           return (
                             <button
                               key={a.taskId}
-                              onClick={() => toggleLock(a.taskId)}
-                              aria-pressed={a.locked}
+                              onClick={() => {
+                                if (suppressClick.current) { suppressClick.current = false; return; }
+                                select(a.taskId);
+                                setShowDetails(true);
+                              }}
+                              onPointerDown={(event) => {
+                                if (event.button !== 0) return;
+                                suppressClick.current = false;
+                                select(a.taskId);
+                                drag.current = { taskId: a.taskId, x: event.clientX, y: event.clientY, moved: false };
+                                event.currentTarget.setPointerCapture(event.pointerId);
+                              }}
+                              onPointerMove={(event) => {
+                                const current = drag.current;
+                                if (!current || current.taskId !== a.taskId) return;
+                                if (Math.hypot(event.clientX - current.x, event.clientY - current.y) > 5) current.moved = true;
+                                if (current.moved) {
+                                  const target = dropAt(event.clientX, event.clientY);
+                                  if (target && target.start >= 0) setCandidate(target);
+                                }
+                              }}
+                              onPointerUp={(event) => {
+                                const current = drag.current;
+                                if (!current || current.taskId !== a.taskId) return;
+                                drag.current = null;
+                                if (current.moved) {
+                                  suppressClick.current = true;
+                                  applyMove(a.taskId, dropAt(event.clientX, event.clientY));
+                                  setShowDetails(true);
+                                }
+                              }}
+                              onPointerCancel={() => { drag.current = null; }}
+                              aria-pressed={selectedId === a.taskId}
                               title={`${t.name} · ${formatAbs(a.start, startDate)} → ${formatTime(a.start + t.duration - Math.floor(a.start / DAY) * DAY)} · ${
-                                a.locked ? 'verrouillé (cliquer pour déverrouiller)' : 'cliquer pour verrouiller'
+                                a.locked ? 'verrouillé' : 'cliquer pour sélectionner ou glisser pour déplacer'
                               }`}
-                              className={`absolute inset-x-1 overflow-hidden rounded-md px-2 text-left text-xs font-medium text-white shadow ${
-                                a.locked ? 'ring-2 ring-white' : ''
+                              className={`absolute inset-x-1 z-20 cursor-grab overflow-hidden rounded-md px-2 text-left text-xs font-medium text-white shadow active:cursor-grabbing ${
+                                selectedId === a.taskId ? 'ring-2 ring-indigo-600' : a.locked ? 'ring-2 ring-white' : ''
                               }`}
                               style={{
+                                touchAction: 'none',
                                 top: pct(s),
                                 height: `calc(${pct(s + t.duration)} - ${pct(s)})`,
                                 backgroundColor: p.color,
