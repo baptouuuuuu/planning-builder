@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Assignment, Person, Problem, ScheduledTask, Settings, SolveResult, Task } from '../domain/types';
 import { solve } from '../solver/solve';
 import { validate } from '../solver/validate';
+import { validStarts } from '../solver/placement';
 import { samplePeople, sampleSettings, sampleTasks } from '../data/sample';
 import { migrateLegacyTasks, migrateTaskOrdering } from '../domain/taskRelations';
 
@@ -25,6 +26,7 @@ interface State extends Snapshot {
   generate: () => void;
   regenerate: () => void;
   toggleLock: (taskId: string) => void;
+  moveAssignment: (taskId: string, personId: string, start: number) => boolean;
   clearUnlocked: () => void;
   undo: () => void;
   redo: () => void;
@@ -124,9 +126,9 @@ export const useStore = create<State>((set, get) => {
     ...load(),
     past: [],
     future: [],
-    setPeople: (people) => commit(sanitize({ ...pick(get()), people })),
+    setPeople: (people) => commit(sanitize({ ...pick(get()), people, result: null })),
     setTasks: (tasks) => commit(sanitize({ ...pick(get()), tasks, result: null })),
-    setSettings: (settings) => commit({ ...pick(get()), settings }),
+    setSettings: (settings) => commit({ ...pick(get()), settings, result: null }),
     generate: () => commit(run(pick(get()), get().seed)),
     regenerate: () => commit(run(pick(get()), Math.floor(Math.random() * 2 ** 31))),
     toggleLock: (taskId) => {
@@ -135,6 +137,16 @@ export const useStore = create<State>((set, get) => {
       const next = { ...s, assignments };
       if (s.result) next.result = { ...s.result, assignments, conflicts: validate(problemOf(s), assignments) };
       commit(next);
+    },
+    moveAssignment: (taskId, personId, start) => {
+      const s = pick(get());
+      const current = s.assignments.find((a) => a.taskId === taskId);
+      if (!current || !Number.isInteger(start) ||
+        !validStarts(problemOf(s), s.assignments, taskId, personId).some((r) => r.start <= start && start <= r.end)) return false;
+      if (current.personId === personId && current.start === start) return true;
+      const assignments = s.assignments.map((a) => a.taskId === taskId ? { ...a, personId, start } : a);
+      commit({ ...s, assignments, result: null });
+      return true;
     },
     clearUnlocked: () => {
       const s = pick(get());

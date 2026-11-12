@@ -29,8 +29,8 @@ export function PlanningView() {
         </button>
       </div>
       <p className="text-sm text-slate-500">
-        Cliquez sur un créneau pour le verrouiller 🔒 : « Régénérer » ne replanifie que le reste. {locked} verrouillé(s).
-        Zoomez sur le planning à la molette ou avec deux doigts.
+        Sélectionnez ou glissez une tâche pour la déplacer dans une zone compatible. Verrouillez-la pour la conserver lors
+        de la régénération. {locked} verrouillé(s). Zoomez à la molette ou avec deux doigts.
       </p>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Timeline />

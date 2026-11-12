@@ -50,6 +50,6 @@ describe('Timeline', () => {
     expect(html).toContain('Bob');
 
     useStore.getState().toggleLock(task.subtasks[0]!.id);
-    expect(renderToStaticMarkup(createElement(Timeline))).toContain('aria-pressed="true"');
+    expect(renderToStaticMarkup(createElement(Timeline))).toContain('verrouillé');
   });
 });
