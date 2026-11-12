@@ -1,5 +1,5 @@
-import type { Assignment, Conflict, Interval, Person, Problem, Task } from '../domain/types';
-import { formatAbs } from '../domain/types';
+import type { Assignment, Conflict, Interval, Person, Problem, ScheduledTask as Task } from '../domain/types';
+import { formatAbs, scheduledTasks } from '../domain/types';
 
 const overlaps = (a: Interval, b: Interval) => a.start < b.end && b.start < a.end;
 
@@ -14,7 +14,7 @@ export function fitsWindow(task: Task, start: number, end: number): boolean {
 /** Vérifie toutes les contraintes dures d'un jeu d'affectations. */
 export function validate(problem: Problem, assignments: Assignment[]): Conflict[] {
   const conflicts: Conflict[] = [];
-  const taskMap = new Map(problem.tasks.map((t) => [t.id, t]));
+  const taskMap = new Map(scheduledTasks(problem.tasks).map((t) => [t.id, t]));
   const personMap = new Map(problem.people.map((p) => [p.id, p]));
   const byTask = new Map(assignments.map((a) => [a.taskId, a]));
 

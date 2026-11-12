@@ -1,15 +1,15 @@
-import type { Task } from './types';
+import type { ScheduledTask, Subtask, Task } from './types';
 
 export type Relation = 'none' | 'linked' | 'follows' | 'followed';
 
 /** Les anciens liens multiples sont conservés par paires selon l'ordre des tâches. */
-export function normalizeLinks(tasks: Task[]): { tasks: Task[]; changes: string[] } {
+export function normalizeLinks(tasks: ScheduledTask[]): { tasks: ScheduledTask[]; changes: string[] } {
   const result = tasks.map((t) => ({ ...t, linkedTo: [] as string[] }));
   const byId = new Map(result.map((t) => [t.id, t]));
   const used = new Set<string>();
   const seen = new Set<string>();
   const changes: string[] = [];
-  const sameWindow = (a: Task['window'], b: Task['window']) =>
+  const sameWindow = (a: ScheduledTask['window'], b: ScheduledTask['window']) =>
     a?.start === b?.start && a?.end === b?.end;
 
   for (const original of tasks) {
@@ -44,17 +44,15 @@ export function normalizeLinks(tasks: Task[]): { tasks: Task[]; changes: string[
   return { tasks: result, changes };
 }
 
-export function updateTask(tasks: Task[], id: string, patch: Partial<Task>): Task[] {
+export function updateTask(tasks: Subtask[], id: string, patch: Partial<Subtask>): Subtask[] {
   const task = tasks.find((t) => t.id === id);
-  const shared: Partial<Task> = {};
-  if ('window' in patch) shared.window = patch.window;
-  if ('preferredWindow' in patch) shared.preferredWindow = patch.preferredWindow;
+  const shared: Partial<Subtask> = {};
   if ('linkGap' in patch) shared.linkGap = patch.linkGap;
   return tasks.map((t) => t.id === id ? { ...t, ...patch }
     : task?.linkedTo.includes(t.id) ? { ...t, ...shared } : t);
 }
 
-export function withoutRelation(tasks: Task[], t: Task, o: Task): Task[] {
+export function withoutRelation(tasks: Subtask[], t: Subtask, o: Subtask): Subtask[] {
   return tasks.map((x) =>
     x.id === t.id ? { ...x, dependsOn: x.dependsOn.filter((d) => d !== o.id), linkedTo: x.linkedTo.filter((d) => d !== o.id) }
     : x.id === o.id ? { ...x, dependsOn: x.dependsOn.filter((d) => d !== t.id), linkedTo: x.linkedTo.filter((d) => d !== t.id) }
@@ -62,10 +60,10 @@ export function withoutRelation(tasks: Task[], t: Task, o: Task): Task[] {
   );
 }
 
-export function setTaskRelation(tasks: Task[], t: Task, o: Task, rel: Relation): Task[] {
+export function setTaskRelation(tasks: Subtask[], t: Subtask, o: Subtask, rel: Relation): Subtask[] {
   return withoutRelation(tasks, t, o).map((x) => {
     if (rel === 'linked') {
-      if (x.id === t.id) return { ...x, linkedTo: [o.id], linkGap: 0, window: o.window, preferredWindow: o.preferredWindow };
+      if (x.id === t.id) return { ...x, linkedTo: [o.id], linkGap: 0 };
       if (x.id === o.id) return { ...x, linkedTo: [t.id], linkGap: 0 };
       if (t.linkedTo.includes(x.id)) return { ...x, linkedTo: x.linkedTo.filter((id) => id !== t.id) };
     }
@@ -75,14 +73,35 @@ export function setTaskRelation(tasks: Task[], t: Task, o: Task, rel: Relation):
   });
 }
 
-export function duplicateTask(t: Task, id: string): Task {
+export function duplicateTask(t: Task, id: string, newId: () => string): Task {
+  const ids = new Map(t.subtasks.map((s) => [s.id, newId()]));
   return {
     ...t,
     id,
     name: `${t.name} (copie)`,
-    preferredPersonIds: [...t.preferredPersonIds],
-    dependsOn: [...t.dependsOn],
-    linkedTo: [],
-    linkGap: 0,
+    subtasks: t.subtasks.map((s) => ({
+      ...s, id: ids.get(s.id)!, preferredPersonIds: [...s.preferredPersonIds],
+      dependsOn: s.dependsOn.flatMap((dep) => ids.has(dep) ? [ids.get(dep)!] : []),
+      linkedTo: s.linkedTo.flatMap((link) => ids.has(link) ? [ids.get(link)!] : []),
+    })),
   };
+}
+
+/** Préserve les identifiants des affectations et les relations entre anciennes tâches. */
+export function migrateLegacyTasks(legacy: ScheduledTask[]): { tasks: Task[]; changes: string[] } {
+  const normalized = normalizeLinks(legacy);
+  const byId = new Map(normalized.tasks.map((t) => [t.id, t]));
+  const used = new Set<string>();
+  const tasks: Task[] = [];
+  for (const t of normalized.tasks) {
+    if (used.has(t.id)) continue;
+    const linked = t.linkedTo.map((id) => byId.get(id)).filter((x): x is ScheduledTask => !!x && !used.has(x.id));
+    const group = [t, ...linked];
+    group.forEach((s) => used.add(s.id));
+    tasks.push({
+      id: `parent:${t.id}`, name: t.name, window: t.window, preferredWindow: t.preferredWindow,
+      subtasks: group.map(({ window: _window, preferredWindow: _preferredWindow, ...subtask }) => subtask),
+    });
+  }
+  return { tasks, changes: ['Les anciennes tâches sont devenues des sous-tâches ; leurs affectations ont été conservées.', ...normalized.changes] };
 }

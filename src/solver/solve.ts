@@ -1,5 +1,5 @@
-import type { Assignment, Interval, Person, Problem, SolveResult, Task, Unscheduled } from '../domain/types';
-import { formatAbs } from '../domain/types';
+import type { Assignment, Interval, Person, Problem, SolveResult, ScheduledTask as Task, Unscheduled } from '../domain/types';
+import { formatAbs, scheduledTasks } from '../domain/types';
 import { createRng } from './rng';
 import { fitsAvailability, fitsWindow, softPenalty, validate } from './validate';
 
@@ -11,6 +11,8 @@ export interface SolveOptions {
   improveIterations?: number;
   step?: number;
 }
+
+type SolverProblem = Omit<Problem, 'tasks'> & { tasks: Task[] };
 
 interface Ctx {
   tasks: Map<string, Task>;
@@ -150,7 +152,7 @@ function totalPenalty(c: Ctx): number {
   return p + imbalance(c) * BALANCE_WEIGHT;
 }
 
-function attempt(problem: Problem, opts: SolveOptions, rng: () => number, jitter: number) {
+function attempt(problem: SolverProblem, opts: SolveOptions, rng: () => number, jitter: number) {
   const tasks = new Map(problem.tasks.map((t) => [t.id, t]));
   const successors = new Map<string, string[]>();
   for (const t of problem.tasks)
@@ -211,7 +213,7 @@ function attempt(problem: Problem, opts: SolveOptions, rng: () => number, jitter
   return { c, unscheduled, penalty };
 }
 
-function diagnose(problem: Problem, task: Task): Unscheduled {
+function diagnose(problem: SolverProblem, task: Task): Unscheduled {
   const base = { taskId: task.id };
   if (problem.people.length === 0)
     return { ...base, code: 'no-person', reason: "Aucune personne dans l'équipe." };
@@ -243,14 +245,15 @@ function diagnose(problem: Problem, task: Task): Unscheduled {
 
 /** Heuristique gloutonne + amélioration locale, avec redémarrages seedés. */
 export function solve(problem: Problem, options: SolveOptions): SolveResult {
+  const flatProblem = { ...problem, tasks: scheduledTasks(problem.tasks) };
   const restarts = options.restarts ?? 12;
   const rng = createRng(options.seed);
-  const total = problem.tasks.length;
+  const total = flatProblem.tasks.length;
   let best: ReturnType<typeof attempt> | null = null;
   let bestScore = -Infinity;
   for (let r = 0; r < restarts; r++) {
     // Le redémarrage 0 est quasi déterministe (jitter faible) mais reste dépendant de la seed.
-    const res = attempt(problem, options, rng, r === 0 ? 0.5 : 2 + r / 2);
+    const res = attempt(flatProblem, options, rng, r === 0 ? 0.5 : 2 + r / 2);
     const score = res.c.placed.size * 100 - res.penalty;
     if (score > bestScore) {
       best = res;
@@ -258,7 +261,7 @@ export function solve(problem: Problem, options: SolveOptions): SolveResult {
     }
   }
   const { c, unscheduled, penalty } = best!;
-  const assignments = problem.tasks.flatMap((t) => (c.placed.has(t.id) ? [c.placed.get(t.id)!] : []));
+  const assignments = flatProblem.tasks.flatMap((t) => (c.placed.has(t.id) ? [c.placed.get(t.id)!] : []));
 
   // Les créneaux verrouillés invalides sont signalés sans être supprimés.
   const conflicts = validate(problem, assignments);

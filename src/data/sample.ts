@@ -1,4 +1,5 @@
-import type { Person, Settings, Task } from '../domain/types';
+import type { Person, ScheduledTask, Settings } from '../domain/types';
+import { migrateLegacyTasks } from '../domain/taskRelations';
 
 const H = 60;
 const DAY = 1440;
@@ -12,7 +13,7 @@ export const samplePeople: Person[] = [
   { id: 'p-dan', name: 'Dan', color: '#ef4444', availability: week(13, 19, [1, 2, 3]) },
 ];
 
-const t = (id: string, name: string, duration: number, extra: Partial<Task> = {}): Task => ({
+const t = (id: string, name: string, duration: number, extra: Partial<ScheduledTask> = {}): ScheduledTask => ({
   id,
   name,
   duration,
@@ -23,7 +24,7 @@ const t = (id: string, name: string, duration: number, extra: Partial<Task> = {}
   ...extra,
 });
 
-export const sampleTasks: Task[] = [
+export const sampleTasks = migrateLegacyTasks([
   t('t-kickoff', 'Réunion de lancement', 60, {
     window: { start: 0 * DAY + 9 * H, end: 0 * DAY + 12 * H },
     preferredPersonIds: ['p-alice'],
@@ -41,6 +42,6 @@ export const sampleTasks: Task[] = [
   }),
   t('t-support', 'Permanence support', 90, { preferredWindow: slot(1, 14, 17) }),
   t('t-impossible', 'Atelier dimanche (impossible)', 60, { window: slot(6, 9, 11) }),
-];
+]).tasks;
 
 export const sampleSettings: Settings = { horizonDays: 5, dayStart: 8 * H, dayEnd: 19 * H };
