@@ -6,7 +6,7 @@ Générateur de planning d'équipe sous contraintes. 100 % front-end (React + Ty
 
 - **Équipe** : personnes + plages de disponibilité (jour + heure à la minute), copiables sur les jours sans plage.
 - **Tâches et sous-tâches** : une plage imposée peut être définie sur la tâche ; chaque sous-tâche possède sa durée et ses personnes possibles, toutes sélectionnées par défaut. Seules les personnes possibles peuvent être préférées ; une sélection vide interdit toute affectation. Les boutons monter/descendre réorganisent les sous-tâches. Une option par tâche impose leur exécution dans l'ordre affiché ; sinon elles sont indépendantes.
-- **Contraintes globales** : nombre de jours, plage d'affichage, export JSON, jeu de données d'exemple.
+- **Contraintes globales** : nombre de jours, plage d'affichage, import/export JSON, jeu d'exemple compact (2 personnes, 1 tâche, 2 sous-tâches sur 4 h, planifiées avec une seed aléatoire). Une nouvelle personne reçoit une disponibilité sur chaque jour de l'horizon, aux heures globales configurées.
 - **Planning** : plannings verticaux par jour, personnes côte à côte (défilement horizontal si nécessaire), zoom vertical à la molette ou par pincement à deux doigts. Cliquez sur une tâche pour visualiser en vert les débuts compatibles, puis glissez-la ; un clic dans le vide la désélectionne. Double-cliquez sur une tâche pour la verrouiller ou la déverrouiller. Le défilement aux bords reste disponible pendant le déplacement, qui respecte les contraintes dures et conserve son verrouillage. **Générer**, **Régénérer** (nouvelle seed), **Annuler/Rétablir** (historique de 100 états).
 - **Conflits & non planifiées** : avertissement, solution maximale, raison par tâche non planifiée, score.
 - Données persistées en `localStorage`.
@@ -61,7 +61,7 @@ Le `base` Vite vaut `/planning-builder/` par défaut ; surchargez avec `BASE_PAT
 
 ## Roadmap
 
-- Import JSON, plusieurs plannings, disponibilités récurrentes.
+- Plusieurs plannings, disponibilités récurrentes.
 - Vue calendrier mensuelle.
 - Solveur avancé (recherche locale/CP-SAT en Web Worker), pauses générales et temps de déplacement.
 - Packaging Capacitor (iOS/Android) et stockage IndexedDB.

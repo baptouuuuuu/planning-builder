@@ -33,20 +33,12 @@ interface State extends Snapshot {
   loadSample: () => void;
   reset: () => void;
   exportJson: () => string;
+  importJson: (json: string) => void;
   dismissMigrationNotice: () => void;
 }
 
 const KEY = 'planning-builder:v1';
 const HISTORY_LIMIT = 100;
-
-const sampleSnapshot = (): Snapshot => ({
-  people: samplePeople,
-  tasks: sampleTasks,
-  settings: sampleSettings,
-  assignments: [],
-  result: null,
-  seed: 1,
-});
 
 const emptySnapshot = (): Snapshot => ({
   people: [],
@@ -100,6 +92,61 @@ function load(): Snapshot {
   return sampleSnapshot();
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isInterval(value: unknown): value is { start: number; end: number } {
+  return isRecord(value) && Number.isFinite(value.start) && Number.isFinite(value.end);
+}
+
+function isSubtask(value: unknown): boolean {
+  return isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    Number.isFinite(value.duration) &&
+    Array.isArray(value.preferredPersonIds) && value.preferredPersonIds.every((id) => typeof id === 'string') &&
+    Array.isArray(value.dependsOn) && value.dependsOn.every((id) => typeof id === 'string') &&
+    Array.isArray(value.linkedTo) && value.linkedTo.every((id) => typeof id === 'string') &&
+    typeof value.chainSamePerson === 'boolean' &&
+    (value.possiblePersonIds === undefined ||
+      (Array.isArray(value.possiblePersonIds) && value.possiblePersonIds.every((id) => typeof id === 'string'))) &&
+    (value.linkGap === undefined || Number.isFinite(value.linkGap));
+}
+
+function isExport(value: unknown): value is {
+  version: 2;
+  people: Person[];
+  tasks: Task[];
+  settings: Settings;
+  assignments: Assignment[];
+  seed: number;
+} {
+  if (!isRecord(value) || value.version !== 2 ||
+    !Array.isArray(value.people) || !Array.isArray(value.tasks) ||
+    !Array.isArray(value.assignments) || !Number.isFinite(value.seed) ||
+    !isRecord(value.settings)) return false;
+  const { settings } = value;
+  return Number.isInteger(settings.horizonDays) && (settings.horizonDays as number) >= 1 &&
+    (settings.horizonDays as number) <= 14 &&
+    Number.isFinite(settings.dayStart) && Number.isFinite(settings.dayEnd) &&
+    (settings.startDate === undefined || typeof settings.startDate === 'string') &&
+    value.people.every((person) =>
+      isRecord(person) && typeof person.id === 'string' && typeof person.name === 'string' &&
+      typeof person.color === 'string' && Array.isArray(person.availability) &&
+      person.availability.every(isInterval)) &&
+    value.tasks.every((task) =>
+      isRecord(task) && typeof task.id === 'string' && typeof task.name === 'string' &&
+      Array.isArray(task.subtasks) && task.subtasks.every(isSubtask) &&
+      (task.window === undefined || isInterval(task.window)) &&
+      (task.ordered === undefined || typeof task.ordered === 'boolean') &&
+      (task.compact === undefined || typeof task.compact === 'boolean')) &&
+    value.assignments.every((assignment) =>
+      isRecord(assignment) && typeof assignment.taskId === 'string' &&
+      typeof assignment.personId === 'string' && Number.isFinite(assignment.start) &&
+      typeof assignment.locked === 'boolean');
+}
+
 const problemOf = (s: Snapshot): Problem => ({ people: s.people, tasks: s.tasks, settings: s.settings });
 
 /** Retire les affectations devenues orphelines après une modification des données. */
@@ -116,6 +163,18 @@ function run(s: Snapshot, seed: number): Snapshot {
   const result = solve(problemOf(s), { seed, locked });
   return { ...s, seed, assignments: result.assignments, result };
 }
+
+const sampleSnapshot = (): Snapshot => {
+  const seed = Math.floor(Math.random() * 2 ** 31);
+  return run({
+    people: samplePeople,
+    tasks: sampleTasks,
+    settings: sampleSettings,
+    assignments: [],
+    result: null,
+    seed,
+  }, seed);
+};
 
 export const useStore = create<State>((set, get) => {
   const commit = (next: Snapshot) => {
@@ -174,6 +233,26 @@ export const useStore = create<State>((set, get) => {
         null,
         2,
       );
+    },
+    importJson: (json) => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(json);
+      } catch {
+        throw new Error('Le fichier sélectionné ne contient pas un JSON valide.');
+      }
+      if (!isExport(parsed)) {
+        throw new Error("Le fichier ne correspond pas au format JSON exporté par l'application.");
+      }
+      commit(sanitize({
+        people: parsed.people,
+        tasks: parsed.tasks,
+        settings: parsed.settings,
+        assignments: parsed.assignments,
+        result: null,
+        seed: parsed.seed,
+        migrationNotice: undefined,
+      }));
     },
   };
 });

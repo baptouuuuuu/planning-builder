@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import type { Interval, Person } from '../domain/types';
-import { DAY, dayLabel, formatTime } from '../domain/types';
+import { DAY, dayLabel, defaultAvailability, formatTime } from '../domain/types';
 import { Card, IntervalField, btnDanger, btnGhost, inputCls } from './fields';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899', '#84cc16'];
@@ -27,7 +27,7 @@ export function TeamView() {
         id,
         name: `Personne ${people.length + 1}`,
         color: COLORS[people.length % COLORS.length]!,
-        availability: [{ start: 9 * 60, end: 17 * 60 }],
+        availability: defaultAvailability(settings),
       },
     ]);
     setFocusId(id);

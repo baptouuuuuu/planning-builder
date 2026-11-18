@@ -82,6 +82,13 @@ export interface Settings {
   startDate?: string;
 }
 
+export function defaultAvailability(settings: Settings): Interval[] {
+  return Array.from({ length: settings.horizonDays }, (_, day) => ({
+    start: day * DAY + settings.dayStart,
+    end: day * DAY + settings.dayEnd,
+  }));
+}
+
 export interface Problem {
   people: Person[];
   tasks: Task[];
