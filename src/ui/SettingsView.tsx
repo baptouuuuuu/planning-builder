@@ -1,9 +1,12 @@
+import { useRef, useState } from 'react';
 import { useStore } from '../state/store';
 import { formatTime, parseTime } from '../domain/types';
 import { Card, OffsetTimeField, NumberField, btnDanger, btnGhost, inputCls } from './fields';
 
 export function SettingsView() {
-  const { settings, setSettings, seed, loadSample, reset, exportJson } = useStore();
+  const { settings, setSettings, seed, loadSample, reset, exportJson, importJson } = useStore();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [importError, setImportError] = useState('');
 
   const download = () => {
     const url = URL.createObjectURL(new Blob([exportJson()], { type: 'application/json' }));
@@ -12,6 +15,16 @@ export function SettingsView() {
     a.download = 'planning.json';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const importFile = async (file?: File) => {
+    if (!file) return;
+    try {
+      importJson(await file.text());
+      setImportError('');
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Impossible d'importer ce fichier.");
+    }
   };
 
   return (
@@ -65,6 +78,19 @@ export function SettingsView() {
       </Card>
       <Card className="flex flex-wrap gap-2">
         <button className={btnGhost} onClick={download}>Exporter en JSON</button>
+        <button className={btnGhost} onClick={() => fileInput.current?.click()}>Importer un JSON</button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          aria-label="Fichier JSON à importer"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            void importFile(file);
+          }}
+        />
         <button className={btnGhost} onClick={loadSample}>Charger l'exemple</button>
         <button
           className={btnDanger}
@@ -72,6 +98,7 @@ export function SettingsView() {
         >
           Tout effacer
         </button>
+        {importError && <p role="alert" className="w-full text-sm text-red-600">{importError}</p>}
       </Card>
     </div>
   );
